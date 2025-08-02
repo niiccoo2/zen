@@ -2,39 +2,61 @@ package xyz.niiccoo2.zen.ui.screens
 
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
-import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import xyz.niiccoo2.zen.getDailyStats
-import java.util.Calendar
-import java.util.Locale
-import java.util.TimeZone
+import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
+
+data class Stat(
+    val packageName: String,
+    val totalTime: Long
+    // Add any other fields AppUsageRowVisual might eventually need from a Stat object
+)
 
 /**
  * Checks if the app has the necessary permission to access usage statistics.
@@ -54,59 +76,43 @@ fun hasUsageStatsPermission(context: Context): Boolean {
     return mode == AppOpsManager.MODE_ALLOWED
 }
 
+/**
+ * Returns the time at midnight in the users local timezone.
+ *
+ * @return The time at midnight in the users local timezone.
+ */
 fun getStartOfTodayMillis(): Long {
-    val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    val todayLocalDate: LocalDate = LocalDate.now(ZoneId.systemDefault())
 
+    val startOfTodayZonedDateTime: ZonedDateTime = todayLocalDate.atStartOfDay(ZoneId.systemDefault())
 
-    // Set the time to the beginning of the day
-    calendar.set(Calendar.HOUR_OF_DAY, 0) // 0 for midnight
-    calendar.set(Calendar.MINUTE, 0)
-    calendar.set(Calendar.SECOND, 0)
-    calendar.set(Calendar.MILLISECOND, 0)
-
-    return calendar.timeInMillis
+    return startOfTodayZonedDateTime.toInstant().toEpochMilli()
 }
 
 /**
- * Calculates the time on the given app today.
+ * Returns a pair of hours and minutes from a given number of milliseconds.
  *
- * @param context The application context.
- * @param appPackageName The package name of the app you want to calculate the time for.
- * @return The time spent on the app today in milliseconds.
+ * @param millis The number of milliseconds.
+ * @return A pair of hours and minutes.
  */
-fun timeForApp(context: Context, appPackageName: String): Long { // This makes it take a sting as input and return a long
-    val startMillis = getStartOfTodayMillis()
-    val endMillis = System.currentTimeMillis()
-
-    val mUsageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager?
-    val lUsageStatsMap = mUsageStatsManager?.queryAndAggregateUsageStats(startMillis, endMillis)
-    val totalTimeUsageInMillis = lUsageStatsMap?.get(appPackageName)?.totalTimeInForeground
-    return totalTimeUsageInMillis ?: 0
+fun millisToHourAndMinute(millis: Long): Pair<Int, Int> {
+    if (millis <= 0) {
+        return Pair(0, 0)
+    }
+    val totalMinutes = (millis / 60000.0)
+    val hours = totalMinutes.toInt() / 60
+    val minutes = totalMinutes.toInt() % 60
+    return Pair(hours, minutes)
 }
 
-/**
- * Gives the map of time on all maps for the past day
- *
- * @param context The application context.
- * @return The map of time spent on each app today in milliseconds.
- */
-fun timeForAllApps(context: Context): Map<String, UsageStats>? { // This makes it take a sting as input and return a long
-    val startMillis = getStartOfTodayMillis()
-    val endMillis = System.currentTimeMillis()
-
-    val mUsageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager?
-    val lUsageStatsMap = mUsageStatsManager?.queryAndAggregateUsageStats(startMillis, endMillis)
-    return lUsageStatsMap ?: emptyMap() // If the map is null, return an empty map
-}
-
-fun getAccurateAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
+fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
     val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     val usageEvents = usageStatsManager.queryEvents(start - (3 * 60 * 60 * 1000), end) // 3-hour buffer
 
     val usageMap = mutableMapOf<String, Long>()
     val lastResumedEvents = mutableMapOf<String, UsageEvents.Event>()
 
-    val event = UsageEvents.Event()
+    //val event = UsageEvents.Event()
     while (usageEvents.hasNextEvent()) {
         val event = UsageEvents.Event()  // new object each iteration
         usageEvents.getNextEvent(event)
@@ -139,77 +145,183 @@ fun getAccurateAppUsage(context: Context, start: Long, end: Long): Map<String, L
         .mapValues { it.value }
 }
 
+@Composable
+fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
+    val context = LocalContext.current
+    val usagePercentage = if (totalUsageMillis > 0) {
+        (stat.totalTime.toDouble() / totalUsageMillis.toDouble()) * 100
+    } else {
+        0.0
+    }
+
+    // Attempt to load app icon and name
+    val appInfo = remember(stat.packageName) {
+        try {
+            val pm = context.packageManager
+            val app = pm.getApplicationInfo(stat.packageName, 0)
+            object {
+                val name = pm.getApplicationLabel(app).toString()
+                val icon = pm.getApplicationIcon(app)
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (appInfo != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(model = appInfo.icon),
+                    contentDescription = "${appInfo.name} icon",
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            } else {
+                Spacer(modifier = Modifier.size(40.dp)) // Placeholder if icon fails
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = appInfo?.name ?: stat.packageName,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "${"%.1f".format(usagePercentage)}%",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            val (textHour, textMinute) = millisToHourAndMinute(stat.totalTime)
+            Text(
+                text = "${textHour}h ${textMinute}min",
+                fontSize = 16.sp
+            )
+        }
+    }
+}
+
 
 @Composable
 fun StatsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-
-    // State to trigger recomposition for permission check after returning from settings
     var permissionCheckTrigger by remember { mutableStateOf(false) }
-
-    // Define the launcher AT THE TOP LEVEL of the Composable, unconditionally
     val usageAccessSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ -> // We don't typically use the activityResult directly for this permission type
-        // This callback is invoked when the user returns from the settings screen.
-        // We trigger a re-check of the permission status.
+    ) {
         Log.d("StatsScreen", "Returned from settings.")
-        permissionCheckTrigger = !permissionCheckTrigger // Toggle the state to force recomposition
+        permissionCheckTrigger = !permissionCheckTrigger
     }
-
-    // This state will hold the current permission status and update the UI accordingly
     val isPermissionGranted by remember(permissionCheckTrigger) {
         mutableStateOf(hasUsageStatsPermission(context))
+    }
+
+    // --- State variables for your data and loading status ---
+    // These are declared once for the StatsScreen
+    var isLoading by remember { mutableStateOf(false) }
+    var appStatsListState by remember { mutableStateOf<List<Stat>>(emptyList()) }
+    var totalTimeMsState by remember { mutableLongStateOf(0L) }
+    // --- End of states ---
+
+    // Use LaunchedEffect to load data when permission is granted (or permission status changes)
+    // This will run when isPermissionGranted changes, or on initial composition if true.
+    LaunchedEffect(key1 = isPermissionGranted) {
+        if (isPermissionGranted) {
+            isLoading = true // 1. Set loading to true
+
+            // 2. Perform data fetching in a background coroutine
+            val (fetchedStats, fetchedTotalTime) = withContext(Dispatchers.IO) {
+                val start = getStartOfTodayMillis()
+                val end = System.currentTimeMillis()
+                val usageMap = getAppUsage(context, start, end)
+
+                // Transform map to List<Stat>
+                val stats = usageMap.map { (packageName, time) ->
+                    Stat(packageName, time)
+                }.sortedByDescending { it.totalTime } // Optional: sort by time
+
+                val totalMs = stats.sumOf { it.totalTime }
+
+                Pair(stats, totalMs) // Return both results
+            }
+
+            // 3. Update Compose states with the fetched data (back on the Main thread)
+            appStatsListState = fetchedStats
+            totalTimeMsState = fetchedTotalTime
+            isLoading = false // 4. Set loading to false
+        } else {
+            // Optional: Clear data if permission is revoked
+            appStatsListState = emptyList()
+            totalTimeMsState = 0L
+            isLoading = false
+        }
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        contentAlignment = Alignment.Center
+        // Changed to TopCenter if you want the list to start from the top
+        // contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
-        if (isPermissionGranted) { // Use the state variable here
+        if (isPermissionGranted) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                // Removed Arrangement.Center from Column if using TopCenter for Box
+                // verticalArrangement = Arrangement.Center
             ) {
-                Text(text = "Permission Granted", fontSize = 24.sp)
-                //val timeOnApp = timeForApp(context, "com.snapchat.android")
-                val timeOnAllApps = timeForAllApps(context)
-                val timeOnAllAppsNew = getDailyStats(context)
+                // Display Total Time (now using the state variable)
+                val (hour, minute) = millisToHourAndMinute(totalTimeMsState)
 
-                // Old time way
-                var time = 0L // The L makes this a Long so that we can add more longs to it
-                for (key in timeOnAllApps?.keys ?: emptyList()) {
-                    val foregroundTime: Long? = timeOnAllApps?.get(key)?.totalTimeInForeground
-                    time += foregroundTime ?: 0L // If foregroundTime is null, add 0L
+                // Only show total time if there is data, or always show it
+                if (totalTimeMsState > 0 || !isLoading) { // Show if data or not loading
+                    if (hour == 0 && minute == 0 && !isLoading && appStatsListState.isEmpty()) {
+                        // Avoid showing "Time: 0min" if there's genuinely no data yet and not loading
+                        // But if loading is finished and it's still 0, then show it.
+                    } else if (hour == 0) {
+                        Text(text = "Time: ${minute}min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
+                    } else {
+                        Text(text = "Time: ${hour}hr ${minute}min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
+                    }
                 }
-                val formattedTime = String.format(Locale.getDefault(), "%.2f", time/60000.0)
 
-                // New time way
-                var timeNew = 0L // The L makes this a Long so that we can add more longs to it
-                for (keyNew in timeOnAllAppsNew) {
-                    val foregroundTime: Long? = keyNew.totalTime
-                    timeNew += foregroundTime ?: 0L // If foregroundTime is null, add 0L
+
+                // Display List of Apps
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.padding(top = 20.dp))
+                } else if (appStatsListState.isEmpty()) {
+                    Text("No app usage data for today.", modifier = Modifier.padding(top = 20.dp))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = appStatsListState,
+                            key = { stat -> stat.packageName }
+                        ) { statItem: Stat ->
+                            AppUsageRowVisual(
+                                stat = statItem,
+                                totalUsageMillis = totalTimeMsState
+                            )
+                        }
+                    }
                 }
-                val formattedTimeNew = String.format(Locale.getDefault(), "%.2f", timeNew/60000.0)
-
-                val start = getStartOfTodayMillis()
-                val end = System.currentTimeMillis()
-                val accurateUsages = getAccurateAppUsage(context, start, end)
-
-// Sum total time (ms)
-                val totalTimeMs = accurateUsages.values.sum()
-                val totalTimeMinutes = totalTimeMs / 60000.0
-
-                Text(text = "Time (Old): $formattedTime", fontSize = 24.sp)
-                Text(text = "Time (New): $formattedTimeNew", fontSize = 24.sp)
-                Text(text = "Time (New): $totalTimeMinutes", fontSize = 24.sp)
-
-
             }
-        } else {
+        } else { // Permission Denied UI
             Column(
+                modifier = Modifier.fillMaxSize(), // Ensure this column also fills to center its content
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -221,24 +333,15 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                 Button(onClick = {
                     try {
                         val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                        usageAccessSettingsLauncher.launch(intent) // Now it's in scope
+                        usageAccessSettingsLauncher.launch(intent)
                     } catch (e: Exception) {
-                        Log.e(
-                            "StatsScreen",
-                            "Could not open ACTION_USAGE_ACCESS_SETTINGS",
-                            e
-                        )
-                        // Fallback
+                        Log.e("StatsScreen", "Could not open ACTION_USAGE_ACCESS_SETTINGS", e)
                         try {
                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                             intent.data = Uri.fromParts("package", context.packageName, null)
-                            usageAccessSettingsLauncher.launch(intent) // Also in scope
+                            usageAccessSettingsLauncher.launch(intent)
                         } catch (e2: Exception) {
-                            Log.e(
-                                "StatsScreen",
-                                "Could not open ACTION_APPLICATION_DETAILS_SETTINGS",
-                                e2
-                            )
+                            Log.e("StatsScreen", "Could not open ACTION_APPLICATION_DETAILS_SETTINGS", e2)
                         }
                     }
                 }) {
@@ -247,31 +350,4 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         }
     }
-}
-
-@Preview (showBackground = true)
-@Composable
-fun Preview(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = "Permission Granted", fontSize = 24.sp)
-            val timeOnApp = 1576737 // Just set this to a number for the preview
-
-            val formattedTime = String.format(Locale.getDefault(), "%.2f", timeOnApp/60000.0)
-            // ^^^ This converts the time to minutes and formats the time to two decimal places
-            Text(text = "Time (mins): $formattedTime", fontSize = 24.sp)
-            Text(text = "Time (milli): $timeOnApp", fontSize = 24.sp)
-            Text(text = "Current Time (milli): ${System.currentTimeMillis()}", fontSize = 24.sp)
-            Text(text = "Start of today (milli): ${getStartOfTodayMillis()}", fontSize = 24.sp)
-    }
-}
-
 }
