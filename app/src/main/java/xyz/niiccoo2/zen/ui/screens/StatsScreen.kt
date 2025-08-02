@@ -203,10 +203,24 @@ fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
                 )
             }
             val (textHour, textMinute) = millisToHourAndMinute(stat.totalTime)
-            Text(
-                text = "${textHour}h ${textMinute}min",
-                fontSize = 16.sp
-            )
+            if (textHour == 0 && textMinute >= 1) {
+                Text(
+                    text = "${textMinute}min",
+                    fontSize = 16.sp
+                )
+            } else if (textHour != 0) {
+                Text(
+                    text = "${textHour}h ${textMinute}min",
+                    fontSize = 16.sp
+                )
+            } else {
+                val textSecs = stat.totalTime / 1000
+                Text(
+                    text = "${textSecs}secs",
+                    fontSize = 16.sp
+                )
+            }
+
         }
     }
 }
