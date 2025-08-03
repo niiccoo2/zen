@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Zen</string>
+    <string name="accessibility_service_label">Zen App Blocking</string> <!-- This is what shows up in the accessibility settings !-->
+    <string name="accessibility_service_description">This service requires permission to monitor app usage to enable app blocking features.</string>
 </resources>

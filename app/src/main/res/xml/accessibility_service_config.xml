@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/accessibility_service_description"
+    android:packageNames="com.example.app1, com.example.app2"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="true"
+    android:settingsActivity="xyz.niiccoo2.zen.MainActivity"
+    />
+    <!-- Modify these attributes based on your service's needs -->
