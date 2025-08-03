@@ -25,9 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import xyz.niiccoo2.zen.services.PlaceholderAccessibilityService
 
 fun openAccessibilityServiceSettings(context: Context) {
@@ -55,30 +57,59 @@ fun isAccessibilityServiceEnabled(context: Context, serviceClass: Class<out Acce
     return false // The service is not found among enabled services
 }
 
+/**
+ * Checks if the app has the "Display over other apps" permission.
+ *
+ * @param context The application context.
+ * @return True if the permission is granted, false otherwise.
+ */
+fun canDrawOverlays(context: Context): Boolean {
+    return Settings.canDrawOverlays(context)
+}
+
+/**
+ * Opens the system settings screen for the app to allow "Display over other apps" permission.
+ *
+ * @param context The application context or an Activity context.
+ */
+fun requestOverlayPermission(context: Context) {
+    // Check if the context can start an activity. If it's the application context,
+    // you need to add FLAG_ACTIVITY_NEW_TASK.
+    val intent = Intent(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+        "package:${context.packageName}".toUri()
+    )
+    context.startActivity(intent)
+}
+
 @Composable
 fun BlockScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val lifecycleOwner: LifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
 
-    // State to hold whether the service is enabled. This will drive your UI.
-    var serviceEnabledState by remember {
+    // State for Accessibility Service
+    var accessibilityServiceEnabled by remember {
         mutableStateOf(isAccessibilityServiceEnabled(context, PlaceholderAccessibilityService::class.java))
     }
 
+    // State for Overlay Permission
+    var overlayPermissionGranted by remember {
+        mutableStateOf(canDrawOverlays(context))
+    }
+
     // Effect to observe lifecycle events (like ON_RESUME)
-    DisposableEffect(lifecycleOwner) {
+    // This will now update BOTH states on resume.
+    DisposableEffect(lifecycleOwner, context) { // Add context as a key if its instance might change
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // When the app resumes, re-check the permission status
-                serviceEnabledState = isAccessibilityServiceEnabled(context, PlaceholderAccessibilityService::class.java)
-                //Log.d("BlockScreen", "App Resumed. Service enabled: $serviceEnabledState")
+                // When the app resumes, re-check both permission statuses
+                accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, PlaceholderAccessibilityService::class.java)
+                overlayPermissionGranted = canDrawOverlays(context)
             }
         }
 
-        // Add the observer to the lifecycle
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        // When the effect leaves the Composition, remove the observer
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
@@ -90,25 +121,36 @@ fun BlockScreen(modifier: Modifier = Modifier) {
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (serviceEnabledState) {
-            Text(text = "Accessibility Service Enabled", fontSize = 24.sp)
-            // You could potentially launch another effect here if you need to fetch data
-            // *after* the service is confirmed enabled, similar to your example:
-            // LaunchedEffect(Unit) { /* Fetch app usage stats if needed */ }
-        } else {
+        // Updated conditional logic
+        if (accessibilityServiceEnabled && overlayPermissionGranted) {
+            Text(text = "All Permissions Granted!", fontSize = 24.sp)
+            // Main content when both permissions are available
+        } else if (!accessibilityServiceEnabled) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally, // For Column content
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = "Accessibility Service Disabled",
-                    fontSize = 24.sp,
+                    fontSize = 20.sp, // Adjusted for clarity
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                Button(onClick = {
-                    openAccessibilityServiceSettings(context)
-                }) {
+                Button(onClick = { openAccessibilityServiceSettings(context) }) {
                     Text(text = "Grant Accessibility Permission")
+                }
+            }
+        } else { // Implies accessibility IS enabled, but overlay is NOT
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Overlay Permission Disabled",
+                    fontSize = 20.sp, // Adjusted for clarity
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Button(onClick = { requestOverlayPermission(context) }) {
+                    Text(text = "Grant Overlay Permission")
                 }
             }
         }
