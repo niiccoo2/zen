@@ -19,7 +19,7 @@
 
 
         <activity
-            android:name=".MainActivity"
+            android:name=".activities.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Zen">
             <intent-filter>
@@ -29,8 +29,18 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".activities.OverlayActivity"
+            android:theme="@style/Theme.Zen"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:finishOnTaskLaunch="true"
+            android:clearTaskOnLaunch="true" />
+
         <service
-            android:name=".services.PlaceholderAccessibilityService"
+            android:name=".services.ZenAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:label="@string/accessibility_service_label"
             android:exported="false">
@@ -41,6 +51,17 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <receiver
+            android:name=".utils.OverlayTriggerReceiver"
+            android:enabled="true"
+            android:exported="false"> <!-- 'false' is good since only our app sends/receives this -->
+            <intent-filter>
+                <!-- This is the specific action our receiver listens for -->
+                <action android:name="xyz.niiccoo2.zen.action.SHOW_BLOCK_OVERLAY" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 

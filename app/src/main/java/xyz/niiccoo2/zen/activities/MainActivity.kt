@@ -1,4 +1,4 @@
-package xyz.niiccoo2.zen
+package xyz.niiccoo2.zen.activities
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,29 +18,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             ZenTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.Companion.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     // Call your main UI Composable here!
                     BottomNavigationBar()
                 }
-                }
+            }
             }
         }
     }
-
-//@Composable
-//fun Greeting(name: String, modifier: Modifier = Modifier) {
-//    Text(
-//        text = "Hello $name!",
-//        modifier = modifier
-//    )
-//}
-//
-//@Preview(showBackground = true)
-//@Composable
-//fun GreetingPreview() {
-//    ZenTheme {
-//        Greeting("Nico")
-//    }
-//}

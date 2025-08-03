@@ -30,7 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import xyz.niiccoo2.zen.services.PlaceholderAccessibilityService
+import xyz.niiccoo2.zen.services.ZenAccessibilityService
 
 fun openAccessibilityServiceSettings(context: Context) {
     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -89,7 +89,7 @@ fun BlockScreen(modifier: Modifier = Modifier) {
 
     // State for Accessibility Service
     var accessibilityServiceEnabled by remember {
-        mutableStateOf(isAccessibilityServiceEnabled(context, PlaceholderAccessibilityService::class.java))
+        mutableStateOf(isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java))
     }
 
     // State for Overlay Permission
@@ -103,7 +103,7 @@ fun BlockScreen(modifier: Modifier = Modifier) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 // When the app resumes, re-check both permission statuses
-                accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, PlaceholderAccessibilityService::class.java)
+                accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java)
                 overlayPermissionGranted = canDrawOverlays(context)
             }
         }
