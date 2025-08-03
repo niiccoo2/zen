@@ -1,5 +1,7 @@
 package xyz.niiccoo2.zen.utils
 
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -31,4 +33,16 @@ fun millisToHourAndMinute(millis: Long): Pair<Int, Int> {
     val hours = totalMinutes.toInt() / 60
     val minutes = totalMinutes.toInt() % 60
     return Pair(hours, minutes)
+}
+
+fun millisToNormalTime(millis: Long): String {
+    val (hours, minutes) = millisToHourAndMinute(millis)
+    if (hours == 0 && minutes >= 1) {
+        return "$minutes min"
+    } else if (hours != 0) {
+        return "$hours h $minutes min"
+    } else {
+        val textSecs = millis / 1000
+        return "$textSecs secs"
+    }
 }

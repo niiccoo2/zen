@@ -21,9 +21,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import xyz.niiccoo2.zen.ui.theme.ZenTheme
+import xyz.niiccoo2.zen.utils.getSingleAppUsage
+import xyz.niiccoo2.zen.utils.getStartOfTodayMillis
+import xyz.niiccoo2.zen.utils.millisToHourAndMinute
+import xyz.niiccoo2.zen.utils.millisToNormalTime
 
 class OverlayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,6 +75,8 @@ fun BlockingScreenComposable(
     onContinueToApp: () -> Unit,
     onDoSomethingElse: () -> Unit
 ) {
+    val context = LocalContext.current
+    val appTime = millisToNormalTime(getSingleAppUsage(context, appName))
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -88,7 +95,7 @@ fun BlockingScreenComposable(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "You've opened $appName.",
+                text = "You've spent $appTime on $appName.",
                 fontSize = 18.sp,
                 color = MaterialTheme.colorScheme.onBackground
             )

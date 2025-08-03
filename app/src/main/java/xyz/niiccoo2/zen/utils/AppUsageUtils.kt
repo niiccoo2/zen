@@ -44,15 +44,13 @@ fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
         .mapValues { it.value }
 }
 
-fun timeForApp(context: Context, appPackageName: String): Long { // This makes it take a sting as input and return a long
-    val startMillis = 1693571200000 // Need to change this to be the start of today
-    val endMillis = System.currentTimeMillis()
+fun getTodaysAppUsage(context: Context): Map<String, Long> {
+    val start = getStartOfTodayMillis()
+    val end = System.currentTimeMillis()
+    return getAppUsage(context, start, end)
+}
 
-    val mUsageStatsManager =
-        context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager?
-    val lUsageStatsMap =
-        mUsageStatsManager?.queryAndAggregateUsageStats(startMillis, endMillis)
-    val totalTimeUsageInMillis =
-        lUsageStatsMap?.get(appPackageName)?.totalTimeInForeground
-    return totalTimeUsageInMillis ?: 0
+fun getSingleAppUsage(context: Context, packageName: String): Long {
+    val appUsage = getTodaysAppUsage(context)
+    return appUsage[packageName] ?: 0
 }

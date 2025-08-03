@@ -49,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import xyz.niiccoo2.zen.utils.getStartOfTodayMillis
 import xyz.niiccoo2.zen.utils.millisToHourAndMinute
+import xyz.niiccoo2.zen.utils.getTodaysAppUsage
 
 
 data class Stat(
@@ -184,9 +185,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
             // 2. Perform data fetching in a background coroutine
             val (fetchedStats, fetchedTotalTime) = withContext(Dispatchers.IO) {
-                val start = getStartOfTodayMillis()
-                val end = System.currentTimeMillis()
-                val usageMap = getAppUsage(context, start, end)
+                val usageMap = getTodaysAppUsage(context)
 
                 // Transform map to List<Stat>
                 val stats = usageMap.map { (packageName, time) ->
