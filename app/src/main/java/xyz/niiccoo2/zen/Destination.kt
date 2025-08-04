@@ -9,9 +9,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 // This is an "enum class". It's a special kind of class for defining a fixed set of constants.
 enum class Destination(
     val route: String,          // Unique ID for navigation
-    val icon: ImageVector,      // The icon for the tab
-    val label: String,          // The text label for the tab
-    val contentDescription: String // For accessibility
+    val icon: ImageVector?,      // The icon for the tab
+    val label: String?,          // The text label for the tab
+    val contentDescription: String, // For accessibility
+    val showInBottomBar: Boolean = true // Whether to show in the bottom bar
 ) {
     // Define your actual screens here. I'm making up some examples.
     // You can change these names, routes, icons, and labels to fit your app.
@@ -35,12 +36,14 @@ enum class Destination(
         icon = Icons.Filled.Settings,
         label = "Settings",
         contentDescription = "Go to App Settings"
-    ); // Semicolon at the end of enum entries is optional in modern Kotlin but good practice
+    ),
 
-    // This part allows you to easily get all entries.
-    // In Kotlin 1.9+, `Destination.entries` is available by default for enums.
-    // If you are on an older Kotlin or for explicit clarity, you can keep this.
-    // companion object {
-    //    fun getAllDestinations(): List<Destination> = entries.toList()
-    // }
+    NEW_BLOCK( // Name it descriptively
+        route = "add_app_to_block_screen",
+        icon = null, // Not shown in bottom bar, so can be null
+        label = null,      // Not shown in bottom bar
+        contentDescription = "Add app to block list screen", // Still good for general accessibility context
+        false // Not shown in bottom bar
+    );
+
 }

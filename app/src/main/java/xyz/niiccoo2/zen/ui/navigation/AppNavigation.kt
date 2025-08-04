@@ -3,15 +3,8 @@ package xyz.niiccoo2.zen.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,6 +12,7 @@ import xyz.niiccoo2.zen.Destination
 import xyz.niiccoo2.zen.ui.screens.StatsScreen
 import xyz.niiccoo2.zen.ui.screens.BlockScreen
 import xyz.niiccoo2.zen.ui.screens.SettingsScreen
+import xyz.niiccoo2.zen.ui.screens.NewBlock
 
 
 // This is our main navigation controller.
@@ -45,9 +39,13 @@ fun AppNavHost(
 
         composable(route = Destination.STATS.route) { StatsScreen() }
 
-        composable(route = Destination.BLOCKS.route) { BlockScreen() }
+        composable(route = Destination.BLOCKS.route) { BlockScreen(navController) }
 
         composable(route = Destination.APP_SETTINGS.route) { SettingsScreen() }
+
+        composable(route = Destination.NEW_BLOCK.route) {
+            NewBlock(navController = navController)
+        }
     }
 }
 

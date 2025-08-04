@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Process
 import androidx.annotation.OptIn
-import androidx.compose.runtime.remember
 import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
 
@@ -119,11 +118,17 @@ fun getAppNameAndIcon(context: Context, packageName: String): Pair<String, Drawa
         val name = pm.getApplicationLabel(app).toString()
         val icon = pm.getApplicationIcon(app)
         Pair(name, icon) // If all goes well, return the Pair
-    } catch (e: PackageManager.NameNotFoundException) { // If package manager can't find the package
-        Log.w("AppInfo", "Application package not found: $packageName. It might have been uninstalled.")
+    } catch (_: PackageManager.NameNotFoundException) { // If package manager can't find the package
+        Log.w(
+            "AppInfo",
+            "Application package not found: $packageName. It might have been uninstalled."
+        )
         null
-    } catch (e: Exception) { // To catch anything else
-        Log.e("AppInfo", "An unexpected error occurred while getting info for package: $packageName")
+    } catch (_: Exception) { // To catch anything else
+        Log.e(
+            "AppInfo",
+            "An unexpected error occurred while getting info for package: $packageName"
+        )
         null
     }
 }

@@ -1,13 +1,8 @@
 package xyz.niiccoo2.zen.ui.screens
 
-import android.app.AppOpsManager
-import android.app.usage.UsageEvents
-import android.app.usage.UsageStatsManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,9 +42,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import xyz.niiccoo2.zen.utils.getTodaysAppUsage
 import xyz.niiccoo2.zen.utils.hasUsageStatsPermission
 import xyz.niiccoo2.zen.utils.millisToHourAndMinute
-import xyz.niiccoo2.zen.utils.getTodaysAppUsage
 
 
 data class Stat(

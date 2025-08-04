@@ -33,7 +33,7 @@ fun BottomNavigationBar(modifier: Modifier = Modifier) {
                 // Destination.entries is available if using Kotlin 1.9+
                 // If on older Kotlin, you might need a helper like Destination.values().toList()
                 // or a custom method in your enum like Destination.getAllDestinations()
-                Destination.entries.forEachIndexed { index, destinationEntry ->
+                Destination.entries.filter { it.showInBottomBar } .forEachIndexed { index, destinationEntry ->
                     NavigationBarItem(
                         selected = selectedItemIndex == index,
                         onClick = {
@@ -49,12 +49,14 @@ fun BottomNavigationBar(modifier: Modifier = Modifier) {
                             }
                         },
                         icon = {
-                            Icon(
-                                imageVector = destinationEntry.icon, // Use icon from your Destination enum entry
-                                contentDescription = destinationEntry.contentDescription
-                            )
+                            destinationEntry.icon?.let {
+                                Icon(
+                                    imageVector = it, // Use icon from your Destination enum entry
+                                    contentDescription = destinationEntry.contentDescription
+                                )
+                            }
                         },
-                        label = { Text(destinationEntry.label) } // Use label from your Destination enum entry
+                        label = { destinationEntry.label?.let { Text(it) } } // Use label from your Destination enum entry
                     )
                 }
             }

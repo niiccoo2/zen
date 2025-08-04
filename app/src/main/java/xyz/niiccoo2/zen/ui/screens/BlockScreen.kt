@@ -5,7 +5,6 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Drawable
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
@@ -21,9 +20,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,8 +48,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import xyz.niiccoo2.zen.Destination
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.utils.AppSettings
 import xyz.niiccoo2.zen.utils.getAppNameAndIcon
@@ -148,27 +154,28 @@ fun BlockCard(blockedPackage: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // Good to have if you later decide to use Scaffold around this
 @Composable
-fun BlockScreen(modifier: Modifier = Modifier) {
+fun BlockScreen(
+    navController: NavController,
+    modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
-    val coroutineScope = rememberCoroutineScope() // Get a CoroutineScope
+    val coroutineScope = rememberCoroutineScope()
     val blockedAppsSet: Set<String> by AppSettings.getBlockedApps(context)
         .collectAsState(initial = emptySet())
 
-    // State for Accessibility Service
-    var accessibilityServiceEnabled by remember {
+    var accessibilityServiceEnabled by remember(context) { // Add context as a key if its instance could change
         mutableStateOf(isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java))
     }
-
-    // State for Overlay Permission
-    var overlayPermissionGranted by remember {
+    var overlayPermissionGranted by remember(context) { // Add context as a key
         mutableStateOf(canDrawOverlays(context))
     }
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                // Re-check permissions when the screen resumes
                 accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java)
                 overlayPermissionGranted = canDrawOverlays(context)
             }
@@ -179,19 +186,17 @@ fun BlockScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Function to save the list of blocked apps
-    fun saveListOfBlockedApps(blockedAppsSet: Set<String>) {
-        coroutineScope.launch { // Use the coroutineScope obtained from rememberCoroutineScope()
+    fun saveListOfBlockedApps(newBlockedAppsSet: Set<String>) { // Renamed parameter for clarity
+        coroutineScope.launch {
             try {
-                AppSettings.saveBlockedApps(context, blockedAppsSet) // Use context from LocalContext.current
-                Log.i("BlockScreen", "Blocked apps saved successfully: $blockedAppsSet")
-                // You could show a Toast or update UI here (ensure UI updates are on the main thread if needed)
+                AppSettings.saveBlockedApps(context, newBlockedAppsSet)
+                Log.i("BlockScreen", "Blocked apps saved successfully: $newBlockedAppsSet")
             } catch (e: Exception) {
                 Log.e("BlockScreen", "Error saving blocked apps", e)
-                // Handle error, show a message to the user, etc.
             }
         }
     }
+
     fun addAppToBlockList(packageName: String) {
         val currentApps = blockedAppsSet.toMutableSet()
         currentApps.add(packageName)
@@ -208,7 +213,7 @@ fun BlockScreen(modifier: Modifier = Modifier) {
         Log.i("BlockScreen", "Blocking apps")
         val appsToBlock = setOf(
             "com.discord",
-            "com.instagram.android",
+            "org.mozilla.firefox",
             "com.google.android.youtube"
         )
         saveListOfBlockedApps(appsToBlock)
@@ -220,19 +225,27 @@ fun BlockScreen(modifier: Modifier = Modifier) {
     }
 
 
-    if (accessibilityServiceEnabled && overlayPermissionGranted) { // If all permissions are granted
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.Start) { // Align to the left or start of writing
-                Text(text = "Current Blocks:", fontSize = 20.sp, modifier = modifier.padding(16.dp))
+    // --- Parent Box to control the FAB alignment relative to BlockScreen's content ---
+    Box(modifier = modifier.fillMaxSize()) {
+
+        // --- Your existing UI logic for permissions and content display ---
+        if (accessibilityServiceEnabled && overlayPermissionGranted) {
+            // Main content when permissions are granted
+            Column( // Changed from Box to Column for more straightforward layout of Text and LazyColumn
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp) // Overall padding for the content area
+            ) {
+                Text(
+                    text = "Current Blocks:",
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(bottom = 16.dp) // Padding below the title
+                )
                 if (blockedAppsSet.isEmpty()) {
                     Text("No apps are currently blocked.", style = MaterialTheme.typography.bodyMedium)
                 } else {
-                    LazyColumn (
-                        modifier = Modifier.weight(1f)
+                    LazyColumn(
+                        modifier = Modifier.weight(1f) // LazyColumn takes available space
                     ) {
                         items(
                             items = blockedAppsSet.toList(),
@@ -242,51 +255,65 @@ fun BlockScreen(modifier: Modifier = Modifier) {
                         }
                     }
                 }
+            }
+        } else if (!accessibilityServiceEnabled) {
+            // UI for when Accessibility Service is disabled
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Accessibility Service Disabled",
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Button(onClick = { openAccessibilityServiceSettings(context) }) {
+                        Text(text = "Grant Accessibility Permission")
+                    }
+                }
+            }
+        } else { // Overlay permission not granted
+            // UI for when Overlay Permission is disabled
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Overlay Permission Disabled",
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Button(onClick = { requestOverlayPermission(context) }) {
+                        Text(text = "Grant Overlay Permission")
+                    }
+                }
+            }
+        }
 
-            }
-        }
-    } else if (!accessibilityServiceEnabled) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+        // --- FloatingActionButton aligned to the BottomEnd of the parent Box ---
+        if (accessibilityServiceEnabled && overlayPermissionGranted) { // Only show the FAB if permissions are granted
+            FloatingActionButton(
+                onClick = {
+                    navController.navigate(Destination.NEW_BLOCK.route)
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd) // Key change: Aligns FAB within the parent Box
+                    .padding(16.dp) // Standard padding for FAB from the edges
             ) {
-                Text(
-                    text = "Accessibility Service Disabled",
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                Button(onClick = { openAccessibilityServiceSettings(context) }) {
-                    Text(text = "Grant Accessibility Permission")
-                }
-            }
-        }
-    } else { // Overlay permission not granted
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Overlay Permission Disabled",
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                Button(onClick = { requestOverlayPermission(context) }) {
-                    Text(text = "Grant Overlay Permission")
-                }
+                Icon(Icons.Filled.Add, "Add app to block list") // Updated content description
             }
         }
     }
-
 }
