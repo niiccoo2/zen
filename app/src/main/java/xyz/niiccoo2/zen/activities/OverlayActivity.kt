@@ -24,16 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.ui.theme.ZenTheme
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
-import xyz.niiccoo2.zen.utils.getStartOfTodayMillis
-import xyz.niiccoo2.zen.utils.millisToHourAndMinute
 import xyz.niiccoo2.zen.utils.millisToNormalTime
 
 class OverlayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val receivedPackageName = intent.getStringExtra(ZenAccessibilityService.EXTRA_PACKAGE_NAME)
+        val receivedAppName = intent.getStringExtra(ZenAccessibilityService.EXTRA_APP_NAME)
         // --- Handle Back Press using OnBackPressedDispatcher ---
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
             // 'true' means this callback is enabled by default
@@ -54,7 +55,8 @@ class OverlayActivity : ComponentActivity() {
         setContent {
             ZenTheme {
                 BlockingScreenComposable (
-                    appName = "YouTube", // You could pass this from the intent if needed
+                    appName = "$receivedAppName",
+                    packageName = "$receivedPackageName",
                     onContinueToApp = {
                         finish()
                     },
@@ -72,11 +74,12 @@ class OverlayActivity : ComponentActivity() {
 @Composable
 fun BlockingScreenComposable(
     appName: String,
+    packageName: String,
     onContinueToApp: () -> Unit,
     onDoSomethingElse: () -> Unit
 ) {
     val context = LocalContext.current
-    val appTime = millisToNormalTime(getSingleAppUsage(context, appName))
+    val appTime = millisToNormalTime(getSingleAppUsage(context, packageName), true)
     Box(
         modifier = Modifier
             .fillMaxSize()

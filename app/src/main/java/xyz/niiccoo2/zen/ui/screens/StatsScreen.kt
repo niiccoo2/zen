@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import xyz.niiccoo2.zen.utils.getStartOfTodayMillis
+import xyz.niiccoo2.zen.utils.hasUsageStatsPermission
 import xyz.niiccoo2.zen.utils.millisToHourAndMinute
 import xyz.niiccoo2.zen.utils.getTodaysAppUsage
 
@@ -58,23 +58,6 @@ data class Stat(
     // Add any other fields AppUsageRowVisual might eventually need from a Stat object
 )
 
-/**
- * Checks if the app has the necessary permission to access usage statistics.
- *
- * @param context The application context.
- * @return True if the permission is granted, false otherwise.
- */
-fun hasUsageStatsPermission(context: Context): Boolean {
-    val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    // If the permission is allowed mode == 0
-    val packageName = context.packageName
-    val mode = appOpsManager.checkOpNoThrow(
-        AppOpsManager.OPSTR_GET_USAGE_STATS,
-        Process.myUid(), // This gets the UID of your app's process
-        packageName      // Use the dynamically obtained package name
-    )
-    return mode == AppOpsManager.MODE_ALLOWED
-}
 @Composable
 fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
     val context = LocalContext.current
@@ -135,18 +118,18 @@ fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
             val (textHour, textMinute) = millisToHourAndMinute(stat.totalTime)
             if (textHour == 0 && textMinute >= 1) {
                 Text(
-                    text = "${textMinute}min",
+                    text = "$textMinute min",
                     fontSize = 16.sp
                 )
             } else if (textHour != 0) {
                 Text(
-                    text = "${textHour}h ${textMinute}min",
+                    text = "$textHour h $textMinute min",
                     fontSize = 16.sp
                 )
             } else {
                 val textSecs = stat.totalTime / 1000
                 Text(
-                    text = "${textSecs}secs",
+                    text = "$textSecs secs",
                     fontSize = 16.sp
                 )
             }
@@ -232,9 +215,9 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                         // Avoid showing "Time: 0min" if there's genuinely no data yet and not loading
                         // But if loading is finished and it's still 0, then show it.
                     } else if (hour == 0) {
-                        Text(text = "Time: ${minute}min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
+                        Text(text = "Total time: $minute min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
                     } else {
-                        Text(text = "Time: ${hour}hr ${minute}min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
+                        Text(text = "Total time: $hour hr $minute min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
                     }
                 }
 

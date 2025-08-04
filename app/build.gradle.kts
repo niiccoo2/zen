@@ -55,6 +55,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.places)
     implementation(libs.androidx.media3.common.ktx) // For more icons
+    implementation(libs.androidx.datastore.preferences) // Or the latest version
+    implementation(libs.androidx.lifecycle.runtime.ktx.v270) // For lifecycleScope
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
