@@ -30,7 +30,7 @@ object AppSettings {
     }
 
     // --- Example for storing app-specific settings ---
-    fun getAppBlockingModeKey(packageName: String) = stringSetPreferencesKey("${packageName}_blocking_mode")
+    //fun getAppBlockingModeKey(packageName: String) = stringSetPreferencesKey("${packageName}_blocking_mode")
     // You'd have similar get/set functions for these
 
 }
