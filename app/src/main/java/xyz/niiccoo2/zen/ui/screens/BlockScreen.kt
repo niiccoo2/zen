@@ -202,7 +202,7 @@ fun BlockScreen(
 
     val activity = context as? Activity
 
-    val skipAccessibilityPermission = false // Lets you skip the accessibility permission prompt for testing
+    val skipAccessibilityPermission = false // Lets you skip the accessibility permission prompt for testing TODO: Make sure this is off false before shipping
 
     var accessibilityServiceEnabled by remember(context) {
         mutableStateOf(isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java))

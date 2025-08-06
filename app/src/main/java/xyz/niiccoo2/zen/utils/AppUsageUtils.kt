@@ -109,9 +109,11 @@ fun hasUsageStatsPermission(context: Context): Boolean {
  * @return A pair of the package name and icon.
  */
 @OptIn(UnstableApi::class)
-fun getAppNameAndIcon(context: Context, packageName: String): Pair<String, Drawable>? {
+fun getAppNameAndIcon(context: Context, packageName: String?): Pair<String, Drawable>? {
     val pm = context.packageManager
-
+    if (packageName == null) {
+        return null
+    }
     return try {
         // --- Code that might throw an exception goes in the 'try' block ---
         val app = pm.getApplicationInfo(packageName, 0) // This line can throw NameNotFoundException
