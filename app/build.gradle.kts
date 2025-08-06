@@ -1,6 +1,8 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+//    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.0"
+    id("org.jetbrains.kotlin.plugin.serialization") version libs.versions.kotlin.get()
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -57,6 +59,8 @@ dependencies {
     implementation(libs.androidx.media3.common.ktx) // For more icons
     implementation(libs.androidx.datastore.preferences) // Or the latest version
     implementation(libs.androidx.lifecycle.runtime.ktx.v270) // For lifecycleScope
+    implementation(libs.kotlinx.serialization.json) // Check for the latest version
+    implementation(libs.androidx.datastore.preferences.v111) // Ensure you have this
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

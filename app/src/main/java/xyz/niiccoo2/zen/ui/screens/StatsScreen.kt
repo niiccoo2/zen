@@ -246,8 +246,13 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Permission Denied",
-                    fontSize = 24.sp,
+                    text = "Usage Access Permission Disabled",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Text(
+                    text = "Zen needs usage access permissions to track app usage.",
+                    style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 Button(onClick = {

@@ -1,7 +1,12 @@
 package xyz.niiccoo2.zen.activities // Or your preferred package
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -24,33 +29,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.ui.theme.ZenTheme
+import xyz.niiccoo2.zen.utils.AlarmReceiver
+import xyz.niiccoo2.zen.utils.AppSettings.setAppOnBreak
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
 import xyz.niiccoo2.zen.utils.millisToNormalTime
 
 class OverlayActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_PACKAGE_TO_BLOCK = "xyz.niiccoo2.zen.PACKAGE_TO_BLOCK"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val receivedPackageName = intent.getStringExtra(ZenAccessibilityService.EXTRA_PACKAGE_NAME)
         val receivedAppName = intent.getStringExtra(ZenAccessibilityService.EXTRA_APP_NAME)
-        // --- Handle Back Press using OnBackPressedDispatcher ---
+
+        val alarmMgr = this.getSystemService(ALARM_SERVICE) as AlarmManager
+//        var alarmIntent: PendingIntent = Intent(this, AlarmReceiver::class.java).let { intent ->
+//            PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+//        }
+
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
+
             // 'true' means this callback is enabled by default
             override fun handleOnBackPressed() {
-                // This is where your custom back press logic goes.
-                // For this blocking screen, we want to do nothing to prevent dismissal.
                 Log.d("OverlayActivity", "Back press intercepted by OnBackPressedCallback. Doing nothing.")
-                // If you wanted to allow back press sometimes, you could:
-                // isEnabled = false // Disable this callback
-                // requireActivity().onBackPressedDispatcher.onBackPressed() // Then invoke the default behavior or another callback
             }
         }
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        // You can also add the callback with a LifecycleOwner to have it automatically
-        // removed when the LifecycleOwner is destroyed:
-        // onBackPressedDispatcher.addCallback(this /* LifecycleOwner */, onBackPressedCallback)
+
 
         setContent {
             ZenTheme {
@@ -58,9 +70,44 @@ class OverlayActivity : ComponentActivity() {
                     appName = "$receivedAppName",
                     packageName = "$receivedPackageName",
                     onContinueToApp = {
+                        // Create the Intent with extras and the PendingIntent HERE
+                        val intentForAlarm = Intent(this@OverlayActivity, AlarmReceiver::class.java).apply {
+                            putExtra(EXTRA_PACKAGE_TO_BLOCK, receivedPackageName)
+                        }
+
+                        val requestCode = receivedPackageName.hashCode() // Unique per package
+
+                        val pendingAlarmIntent: PendingIntent = PendingIntent.getBroadcast(
+                            this@OverlayActivity,
+                            requestCode,
+                            intentForAlarm,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                        )
+
+                        lifecycleScope.launch {
+                            setAppOnBreak(context = this@OverlayActivity, packageName = receivedPackageName)
+                        }
+
+                        if (!alarmMgr.canScheduleExactAlarms()) {
+                            Log.w("OverlayActivity", "Cannot schedule exact alarm, permission denied.")
+                            Toast.makeText(this@OverlayActivity, "Exact alarm permission needed for re-blocking.", Toast.LENGTH_LONG).show()
+                            // Consider guiding to settings or making it clear re-blocking might fail
+                        } else {
+                            alarmMgr.setExactAndAllowWhileIdle(
+                                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                                SystemClock.elapsedRealtime() + 300 * 1000, // Wait 5 minutes
+                                pendingAlarmIntent
+                            )
+                            Log.d("OverlayActivity", "Alarm set to re-block $receivedPackageName in 5 minute.")
+                            Toast.makeText(this@OverlayActivity, "Unblocked for 5 mins.", Toast.LENGTH_SHORT).show()
+                        }
                         finish()
                     },
                     onDoSomethingElse = {
+                        val intent = Intent(Intent.ACTION_MAIN)
+                        intent.addCategory(Intent.CATEGORY_HOME)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
                         finish()
                     }
                 )
@@ -80,6 +127,8 @@ fun BlockingScreenComposable(
 ) {
     val context = LocalContext.current
     val appTime = millisToNormalTime(getSingleAppUsage(context, packageName), true)
+
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -113,7 +162,7 @@ fun BlockingScreenComposable(
                 onClick = onContinueToApp,
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {
-                Text("Continue to $appName")
+                Text("Unblock $appName for 5 minutes")
             }
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(

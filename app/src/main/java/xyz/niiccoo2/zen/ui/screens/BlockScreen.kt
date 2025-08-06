@@ -2,6 +2,8 @@ package xyz.niiccoo2.zen.ui.screens
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.app.AlarmManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -63,10 +65,12 @@ import kotlinx.coroutines.launch
 import xyz.niiccoo2.zen.Destination
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.utils.AppSettings
+import xyz.niiccoo2.zen.utils.BlockedAppSettings
 import xyz.niiccoo2.zen.utils.getAppNameAndIcon
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
 import xyz.niiccoo2.zen.utils.millisToNormalTime
-import xyz.niiccoo2.zen.utils.removeAppFromBlockList
+import androidx.compose.runtime.State
+import xyz.niiccoo2.zen.utils.AppSettings.removeAppFromBlockList
 
 fun openAccessibilityServiceSettings(context: Context) {
     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -185,8 +189,20 @@ fun BlockScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
-    val blockedAppsSet: Set<String> by AppSettings.getBlockedApps(context)
-        .collectAsState(initial = emptySet())
+
+    val blockedAppSettingsMapState: State<Map<String, BlockedAppSettings>> =
+        AppSettings.getBlockedAppSettingsMap(context).collectAsState(initial = emptyMap())
+
+    // Access the map value (this will trigger recomposition when the map changes)
+    val currentBlockedAppSettings: Map<String, BlockedAppSettings> = blockedAppSettingsMapState.value
+
+    // If you only need the package names (keys) from this map for some specific UI part:
+    val packageNamesInConfiguration: Set<String> = currentBlockedAppSettings.keys
+
+
+    val activity = context as? Activity
+
+    val skipAccessibilityPermission = false // Lets you skip the accessibility permission prompt for testing
 
     var accessibilityServiceEnabled by remember(context) {
         mutableStateOf(isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java))
@@ -195,11 +211,20 @@ fun BlockScreen(
         mutableStateOf(canDrawOverlays(context))
     }
 
+    var canScheduleAlarms by remember(context) {
+        mutableStateOf(
+            // The result of the whole expression is passed to mutableStateOf
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+        )
+    }
+
+
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java)
                 overlayPermissionGranted = canDrawOverlays(context)
+                canScheduleAlarms = (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -208,21 +233,29 @@ fun BlockScreen(
         }
     }
 
+    val allPermissionsGranted =
+        (skipAccessibilityPermission || accessibilityServiceEnabled) && // Handles the accessibility part
+                overlayPermissionGranted &&
+                canScheduleAlarms
+
     Box(modifier = modifier.fillMaxSize()) {
-        if (accessibilityServiceEnabled && overlayPermissionGranted) {
+        if (allPermissionsGranted) {
+            // ^^^ It will let you skip the accessibility perms if skipAccessibilityPermission is true
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted padding
             ) {
-                Text(
+                Text( // This kinda looks bad
                     text = "Current Blocks:",
                     style = MaterialTheme.typography.headlineSmall, // Using MaterialTheme typography
                     modifier = Modifier.padding(bottom = 12.dp, top = 8.dp)
                 )
-                if (blockedAppsSet.isEmpty()) {
+                if (packageNamesInConfiguration.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize().weight(1f), // Ensure it takes space if LazyColumn is not shown
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f), // Ensure it takes space if LazyColumn is not shown
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -235,11 +268,11 @@ fun BlockScreen(
                         modifier = Modifier.weight(1f) // LazyColumn takes available space
                     ) {
                         items(
-                            items = blockedAppsSet.toList(), // Important: provide a list
+                            items = packageNamesInConfiguration.toList(), // Important: provide a list
                             key = { packageName -> packageName } // Crucial for animations and item tracking
                         ) { packageName ->
                             AnimatedVisibility(
-                                visible = blockedAppsSet.contains(packageName), // Controls visibility based on presence in the set
+                                visible = packageNamesInConfiguration.contains(packageName), // Controls visibility based on presence in the set
                                 enter = fadeIn(animationSpec = tween(durationMillis = 200)) + expandVertically(animationSpec = tween(durationMillis = 300)),
                                 exit = fadeOut(animationSpec = tween(durationMillis = 200)) + shrinkVertically(animationSpec = tween(durationMillis = 300))
                             ) {
@@ -252,7 +285,7 @@ fun BlockScreen(
                     }
                 }
             }
-        } else if (!accessibilityServiceEnabled) {
+        } else if (!accessibilityServiceEnabled and !skipAccessibilityPermission) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -268,8 +301,43 @@ fun BlockScreen(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
+                    Text(
+                        text = "Zen needs accessibility permissions to block apps.",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
                     Button(onClick = { openAccessibilityServiceSettings(context) }) {
                         Text(text = "Grant Accessibility Permission")
+                    }
+                }
+            }
+        } else if (!canScheduleAlarms) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Alarm Permission Disabled",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Text(
+                        text = "Zen needs alarm permissions to set timers for blocks.",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Button(onClick = {
+                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                        intent.data = "package:xyz.niiccoo2.zen".toUri()
+                        activity?.startActivity(intent)
+                    }) {
+                        Text(text = "Grant Alarm Permission")
                     }
                 }
             }
@@ -289,6 +357,11 @@ fun BlockScreen(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
+                    Text(
+                        text = "Zen needs overlay permission to block apps.",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
                     Button(onClick = { requestOverlayPermission(context) }) {
                         Text(text = "Grant Overlay Permission")
                     }
@@ -296,7 +369,7 @@ fun BlockScreen(
             }
         }
 
-        if (accessibilityServiceEnabled && overlayPermissionGranted) {
+        if (allPermissionsGranted) {
             FloatingActionButton(
                 onClick = {
                     navController.navigate(Destination.NEW_BLOCK.route)

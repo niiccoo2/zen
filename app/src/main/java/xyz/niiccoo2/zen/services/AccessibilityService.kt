@@ -1,18 +1,17 @@
 package xyz.niiccoo2.zen.services
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo // Add this import
-import android.content.Intent // Add this import
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.view.accessibility.AccessibilityEvent
 import android.util.Log
+import android.view.accessibility.AccessibilityEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import xyz.niiccoo2.zen.utils.AppSettings
-
 
 class ZenAccessibilityService : AccessibilityService() {
 
@@ -23,40 +22,37 @@ class ZenAccessibilityService : AccessibilityService() {
         const val EXTRA_APP_NAME = "xyz.niiccoo2.zen.extra.APP_NAME"
     }
 
-    // Coroutine scope for the service
     private val serviceJob = Job()
-    private val serviceScope =
-        CoroutineScope(Dispatchers.Main + serviceJob) // Use Dispatchers.Main or IO
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
-    // Hold the current set of blocked apps
-    @Volatile // Ensure visibility across threads, though updates are on Main
+    @Volatile
     private var currentBlockedApps: Set<String> = emptySet()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i(TAG, "Accessibility Service connected.")
 
-        // Configure service info (as you had before)
-        val serviceInfo = AccessibilityServiceInfo().apply {
+        val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             notificationTimeout = 100
-            // packageNames = null // Listen to all apps, or specify if needed
+            // Consider setting packageNames explicitly if you know which apps you might block,
+            // though for a general blocker, listening to all is common.
+            // packageNames = null
         }
-        setServiceInfo(serviceInfo)
+        serviceInfo = info
 
-        // Start observing blocked apps from DataStore
         observeBlockedApps()
 
-        Log.i(TAG, "Accessibility Service configured and observing blocked apps.")
+        Log.i(TAG, "Accessibility Service configured and observing effectively blocked apps.")
     }
 
     private fun observeBlockedApps() {
         serviceScope.launch {
-            // Use 'applicationContext' as the context for AppSettings
-            AppSettings.getBlockedApps(applicationContext).collectLatest { updatedBlockedApps ->
-                Log.d(TAG, "Blocked apps updated: $updatedBlockedApps")
-                currentBlockedApps = updatedBlockedApps
+            // Use the new method from AppSettings
+            AppSettings.getEffectivelyBlockedPackagesFlow(applicationContext).collectLatest { updatedEffectivelyBlockedPackages ->
+                Log.d(TAG, "Effectively blocked packages updated: $updatedEffectivelyBlockedPackages")
+                currentBlockedApps = updatedEffectivelyBlockedPackages
             }
         }
     }
@@ -69,49 +65,65 @@ class ZenAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString()
-            val className = event.className?.toString()
-
-            Log.d(TAG, "Window state changed - Pkg: $packageName, Class: $className")
+            // val className = event.className?.toString() // className might be useful for more granular blocking in the future
 
             if (packageName != null) {
-                // *** THIS IS THE CORRECTED CHECK ***
-                if (packageName in currentBlockedApps) {
-                    Log.i(TAG, "Blocked app launched: $packageName")
+                serviceScope.launch {
+                    // The logic here remains the same as currentBlockedApps is still Set<String>
+                    //if (packageName in currentBlockedApps) {
 
-                    var appName = packageName
-                    try {
-                        val pm = packageManager
-                        val applicationInfo = pm.getApplicationInfo(packageName, 0)
-                        appName = pm.getApplicationLabel(applicationInfo).toString()
-                    } catch (e: PackageManager.NameNotFoundException) {
-                        Log.e(TAG, "Could not get app name for $packageName", e)
+                    Log.d(TAG, "Window state changed - Pkg: $packageName") // Kept for debugging if needed
+                    val appSettings = AppSettings.getSpecificAppSetting(applicationContext, packageName)
+                    val isAppCurrentlyOnBreak = appSettings?.isOnBreak == true // true if configured and on break, false otherwise (including not configured)
+
+                    if (!isAppCurrentlyOnBreak) {
+                        Log.i(TAG, "Effectively blocked app launched: $packageName")
+
+                        var appName = packageName // Default to package name
+                        try {
+                            val pm = packageManager
+                            val applicationInfo = pm.getApplicationInfo(packageName, 0)
+                            appName = pm.getApplicationLabel(applicationInfo).toString()
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            Log.w(
+                                TAG,
+                                "Could not get app name for $packageName. Using package name.",
+                                e
+                            )
+                        }
+
+                        Log.i(
+                            TAG,
+                            "$appName ($packageName) was launched and is effectively blocked!"
+                        )
+
+                        val overlayTriggerIntent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
+                            putExtra(EXTRA_PACKAGE_NAME, packageName)
+                            putExtra(EXTRA_APP_NAME, appName)
+                            // Explicitly set the target package for the broadcast receiver
+                            // to ensure it's handled by your app's receiver.
+                            setPackage(this@ZenAccessibilityService.packageName)
+                        }
+                        sendBroadcast(overlayTriggerIntent)
+                        Log.d(
+                            TAG,
+                            "Broadcast sent for $appName to show overlay: $ACTION_SHOW_BLOCK_OVERLAY"
+                        )
                     }
-
-                    Log.i(TAG, "$appName ($packageName) was launched and is blocked!")
-
-                    val overlayTriggerIntent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
-                        putExtra(EXTRA_PACKAGE_NAME, packageName)
-                        putExtra(EXTRA_APP_NAME, appName)
-                        setPackage(this@ZenAccessibilityService.packageName) // Explicitly set target package
-                    }
-                    sendBroadcast(overlayTriggerIntent)
-                    Log.d(TAG, "Broadcast sent for $appName: $ACTION_SHOW_BLOCK_OVERLAY")
-                } else {
-                    // Log.i(TAG, "App launched (not blocked): $packageName") // Optional logging
                 }
-            } else {
-                // Log.i(TAG, "Event with null package name.") // Optional
             }
         }
     }
 
     override fun onInterrupt() {
         Log.w(TAG, "Accessibility Service interrupted.")
+        // Consider if any state needs to be cleaned up or if re-observation is needed upon reconnection.
+        // onServiceConnected() will be called again if the service is restarted.
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceJob.cancel() // Cancel coroutines when the service is destroyed
+        serviceJob.cancel() // Cancel all coroutines started in serviceScope
         Log.i(TAG, "Accessibility Service destroyed.")
     }
 }
