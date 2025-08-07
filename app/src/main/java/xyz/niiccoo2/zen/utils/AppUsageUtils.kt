@@ -134,3 +134,43 @@ fun getAppNameAndIcon(context: Context, packageName: String?): Pair<String, Draw
         null
     }
 }
+
+/**
+ * Gets the package name of the current foreground application using UsageStatsManager.
+ *
+ * @param context The application context.
+ * @return The package name of the current foreground application, or null if not found.
+ */
+fun getForegroundAppPackageName(context: Context): String? {
+    val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+    var foregroundApp: String? = null
+    val time = System.currentTimeMillis()
+    // Query events in a reasonable recent window (e.g., last 1 minute or 30 seconds)
+    val events = usageStatsManager.queryEvents(time - (1000 * 60000), time) // Query last 60 seconds
+    val event = UsageEvents.Event()
+
+    var lastActivityResumedTime: Long = 0
+
+    while (events.hasNextEvent()) {
+        events.getNextEvent(event)
+
+        // Use the non-deprecated constant ACTIVITY_RESUMED
+        if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+            // Check if this ACTIVITY_RESUMED event is more recent
+            if (event.timeStamp > lastActivityResumedTime) {
+                foregroundApp = event.packageName
+                lastActivityResumedTime = event.timeStamp
+            }
+        }
+        // You might also want to consider ACTIVITY_PAUSED if an app goes to background
+        // but for "current foreground", ACTIVITY_RESUMED is the primary one.
+    }
+
+    if (foregroundApp == null) {
+        android.util.Log.w("ForegroundCheck", "Could not determine foreground app via UsageEvents query (ACTIVITY_RESUMED).")
+    } else {
+        android.util.Log.d("ForegroundCheck", "Determined foreground app via UsageEvents (ACTIVITY_RESUMED): $foregroundApp")
+    }
+    return foregroundApp
+}
+

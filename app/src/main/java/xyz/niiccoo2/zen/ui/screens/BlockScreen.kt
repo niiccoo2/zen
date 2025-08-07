@@ -8,7 +8,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
+import android.os.Build // Added for version checking
 import android.provider.Settings
+import android.util.Log // Added for logging
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -43,6 +45,8 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect // Added for side effects
+import androidx.compose.runtime.State // Added explicit import
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,16 +65,23 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import xyz.niiccoo2.zen.Destination
+import xyz.niiccoo2.zen.services.ForegroundAppCheckerService // Added import for your service
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.utils.AppSettings
+import xyz.niiccoo2.zen.utils.AppSettings.getSpecificAppSetting
+import xyz.niiccoo2.zen.utils.AppSettings.removeAppFromBlockList
 import xyz.niiccoo2.zen.utils.BlockedAppSettings
 import xyz.niiccoo2.zen.utils.getAppNameAndIcon
+import xyz.niiccoo2.zen.utils.getFormattedScheduledBlockTimes
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
 import xyz.niiccoo2.zen.utils.millisToNormalTime
-import androidx.compose.runtime.State
-import xyz.niiccoo2.zen.utils.AppSettings.removeAppFromBlockList
+import java.time.LocalTime
+import java.time.format.FormatStyle
+import kotlin.text.format
+
 
 fun openAccessibilityServiceSettings(context: Context) {
     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -106,7 +117,39 @@ fun requestOverlayPermission(context: Context) {
 @Composable
 fun BlockCard(blockedPackage: String) {
     val context = LocalContext.current
-    // Explicitly typing appDetails for clarity, though compiler might infer Pair<String, Drawable?>
+    var currentSettings by remember(blockedPackage) {
+        mutableStateOf<BlockedAppSettings?>(null)
+    }
+    var isLoadingSettings by remember(blockedPackage) { mutableStateOf(true) } // For loading state
+
+    LaunchedEffect(key1 = blockedPackage, key2 = context) {
+        isLoadingSettings = true
+        try {
+            val settings = getSpecificAppSetting(context, blockedPackage)
+            currentSettings = settings
+            Log.d("BlockCard", "Settings for $blockedPackage: $settings")
+        } catch (e: Exception) {
+            Log.e("BlockCard", "Error fetching settings for $blockedPackage", e)
+            currentSettings = null
+        } finally {
+            isLoadingSettings = false
+        }
+    }
+
+    // This local helper function was inside BlockCard, ensure it's accessible
+    // or use the one from your utils if you moved it there.
+    // fun formatLocalTime(time: LocalTime, style: FormatStyle = FormatStyle.SHORT): String {
+    //     return try {
+    //         val formatter = DateTimeFormatter.ofLocalizedTime(style)
+    //         time.format(formatter)
+    //     } catch (e: Exception) {
+    //         Log.w("TimeFormatUtil", "Error formatting time $time with style $style. Falling back.", e)
+    //         time.toString()
+    //     }
+    // }
+    // It's better if formatLocalTime is a top-level function in your utils package
+    // and imported, rather than nested here. Assuming it is.
+
     val appDetails: Pair<String, Drawable?>? by remember(blockedPackage) {
         mutableStateOf(getAppNameAndIcon(context = context, packageName = blockedPackage))
     }
@@ -115,65 +158,107 @@ fun BlockCard(blockedPackage: String) {
 
     Card(
         modifier = Modifier
-            // .fillMaxWidth() // fillMaxWidth is good on the Row, not always needed on Card if Row does it
-            .padding(bottom = 8.dp), // A bit less padding than 16dp if items are dense
+            .padding(bottom = 8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp), // Adjust padding as needed
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val currentAppDetails = appDetails // Use a stable val for the if check to help smart cast
+            val (appName, appIcon) = appDetails ?: Pair(blockedPackage, null)
 
-            if (currentAppDetails?.second != null) { // Check if icon drawable is also not null
-                val (name, icon) = currentAppDetails // Smart cast is enough
+            if (appIcon != null) {
                 AsyncImage(
-                    model = icon, // Known to be non-null here
-                    contentDescription = "$name icon",
+                    model = appIcon,
+                    contentDescription = "$appName icon",
                     modifier = Modifier.size(48.dp)
                 )
-                Spacer(Modifier.width(12.dp)) // Slightly more space
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(text = name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val totalTime by remember(blockedPackage) { // Key by what makes it unique
-                        val usage = getSingleAppUsage(context = context, packageName = blockedPackage)
-                        mutableStateOf(millisToNormalTime(usage, true))
-                    }
-                    Text(text = "Time used: $totalTime", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(12.dp))
+            }
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = appName, // Use the resolved appName
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Display total time used
+                val totalTime by remember(blockedPackage, currentSettings) { // Also depends on currentSettings if that affects usage context
+                    val usage = getSingleAppUsage(context = context, packageName = blockedPackage)
+                    mutableStateOf(millisToNormalTime(usage, true))
                 }
-            } else {
-                // Placeholder if app details or icon are not available
-                Column(
-                    modifier = Modifier.weight(1f) // Ensure this column also takes weight
-                ) {
+                Text(
+                    text = "Time used: $totalTime",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // --- Integration of formatted block times ---
+                if (isLoadingSettings) {
                     Text(
-                        text = currentAppDetails?.first ?: blockedPackage, // Show name if available, else package
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "Loading schedule...",
+                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                } else if (currentSettings != null) {
+                    val settings = currentSettings!! // Safe call due to null check
+                    val formattedBlockTimes = getFormattedScheduledBlockTimes(settings, context)
+
+                    if (formattedBlockTimes != null) {
+                        Text(
+                            text = formattedBlockTimes, // e.g., "Blocked: 10:00 AM - 5:00 PM"
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2, // Allow some wrapping if multiple schedules
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else if (settings.isEffectivelyAlwaysBlocked) {
+                        Text(
+                            text = "Always Blocked",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        // This case covers when scheduledBlocks is empty (NO_SCHEDULE)
+                        // and getFormattedScheduledBlockTimes returns null for it.
+                        Text(
+                            text = "No specific block schedule",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    // This case is if currentSettings is null AFTER loading (e.g., error fetching)
                     Text(
-                        text = "App info not fully available.",
+                        text = "Schedule not available",
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                // --- End of integration ---
+
             }
-
-            Spacer(Modifier.width(8.dp)) // Space before FAB
-
+            Spacer(Modifier.width(8.dp))
             SmallFloatingActionButton(
                 onClick = {
                     coroutineScope.launch {
                         removeAppFromBlockList(context, blockedPackage)
+                        // Optionally, you might want to trigger a refresh of the list
+                        // or rely on your AppSettings.getBlockedAppSettingsMap(context).collectAsState
+                        // to automatically update the parent BlockScreen.
                     }
                 },
-                modifier = Modifier.size(fabSize) // Correct modifier usage
+                modifier = Modifier.size(fabSize)
             ) {
                 Icon(Icons.Outlined.Delete, "Remove $blockedPackage from block list")
             }
@@ -181,7 +266,7 @@ fun BlockCard(blockedPackage: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class) // Added ExperimentalAnimationApi
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun BlockScreen(
     navController: NavController,
@@ -192,17 +277,12 @@ fun BlockScreen(
 
     val blockedAppSettingsMapState: State<Map<String, BlockedAppSettings>> =
         AppSettings.getBlockedAppSettingsMap(context).collectAsState(initial = emptyMap())
-
-    // Access the map value (this will trigger recomposition when the map changes)
     val currentBlockedAppSettings: Map<String, BlockedAppSettings> = blockedAppSettingsMapState.value
-
-    // If you only need the package names (keys) from this map for some specific UI part:
     val packageNamesInConfiguration: Set<String> = currentBlockedAppSettings.keys
-
 
     val activity = context as? Activity
 
-    val skipAccessibilityPermission = false // Lets you skip the accessibility permission prompt for testing TODO: Make sure this is off false before shipping
+    val skipAccessibilityPermission = false // Make sure this is false before shipping
 
     var accessibilityServiceEnabled by remember(context) {
         mutableStateOf(isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java))
@@ -210,18 +290,16 @@ fun BlockScreen(
     var overlayPermissionGranted by remember(context) {
         mutableStateOf(canDrawOverlays(context))
     }
-
     var canScheduleAlarms by remember(context) {
         mutableStateOf(
-            // The result of the whole expression is passed to mutableStateOf
             (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
         )
     }
 
-
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                Log.d("BlockScreen", "ON_RESUME: Re-checking permissions.")
                 accessibilityServiceEnabled = isAccessibilityServiceEnabled(context, ZenAccessibilityService::class.java)
                 overlayPermissionGranted = canDrawOverlays(context)
                 canScheduleAlarms = (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
@@ -234,28 +312,49 @@ fun BlockScreen(
     }
 
     val allPermissionsGranted =
-        (skipAccessibilityPermission || accessibilityServiceEnabled) && // Handles the accessibility part
+        (skipAccessibilityPermission || accessibilityServiceEnabled) &&
                 overlayPermissionGranted &&
                 canScheduleAlarms
 
+    // LaunchedEffect to manage the ForegroundAppCheckerService based on allPermissionsGranted
+    LaunchedEffect(key1 = allPermissionsGranted, key2 = context) {
+        val serviceIntent = Intent(context, ForegroundAppCheckerService::class.java)
+        if (allPermissionsGranted) {
+            Log.d("BlockScreen", "All permissions granted. Attempting to start ForegroundAppCheckerService.")
+            try {
+                context.startForegroundService(serviceIntent)
+                Log.i("BlockScreen", "ForegroundAppCheckerService start initiated.")
+            } catch (e: Exception) {
+                Log.e("BlockScreen", "Error starting ForegroundAppCheckerService: ${e.message}", e)
+            }
+        } else {
+            Log.d("BlockScreen", "Not all permissions granted. Attempting to stop ForegroundAppCheckerService.")
+            try {
+                context.stopService(serviceIntent)
+                Log.i("BlockScreen", "ForegroundAppCheckerService stop initiated due to missing permissions.")
+            } catch (e: Exception) {
+                Log.e("BlockScreen", "Error stopping ForegroundAppCheckerService: ${e.message}", e)
+            }
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         if (allPermissionsGranted) {
-            // ^^^ It will let you skip the accessibility perms if skipAccessibilityPermission is true
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted padding
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text( // This kinda looks bad
+                Text(
                     text = "Current Blocks:",
-                    style = MaterialTheme.typography.headlineSmall, // Using MaterialTheme typography
+                    style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(bottom = 12.dp, top = 8.dp)
                 )
                 if (packageNamesInConfiguration.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .weight(1f), // Ensure it takes space if LazyColumn is not shown
+                            .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -265,27 +364,24 @@ fun BlockScreen(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.weight(1f) // LazyColumn takes available space
+                        modifier = Modifier.weight(1f)
                     ) {
                         items(
-                            items = packageNamesInConfiguration.toList(), // Important: provide a list
-                            key = { packageName -> packageName } // Crucial for animations and item tracking
+                            items = packageNamesInConfiguration.toList(),
+                            key = { packageName -> packageName }
                         ) { packageName ->
                             AnimatedVisibility(
-                                visible = packageNamesInConfiguration.contains(packageName), // Controls visibility based on presence in the set
+                                visible = packageNamesInConfiguration.contains(packageName),
                                 enter = fadeIn(animationSpec = tween(durationMillis = 200)) + expandVertically(animationSpec = tween(durationMillis = 300)),
                                 exit = fadeOut(animationSpec = tween(durationMillis = 200)) + shrinkVertically(animationSpec = tween(durationMillis = 300))
                             ) {
-                                // `key` modifier for AnimatedVisibility's direct child is helpful if its content changes identity
-                                // but for a stable child like BlockCard based on packageName, it's often not strictly needed
-                                // if the LazyColumn key is doing its job.
                                 BlockCard(blockedPackage = packageName)
                             }
                         }
                     }
                 }
             }
-        } else if (!accessibilityServiceEnabled and !skipAccessibilityPermission) {
+        } else if (!accessibilityServiceEnabled && !skipAccessibilityPermission) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -333,9 +429,13 @@ fun BlockScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                     Button(onClick = {
-                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                        intent.data = "package:xyz.niiccoo2.zen".toUri()
-                        activity?.startActivity(intent)
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                            intent.data = "package:xyz.niiccoo2.zen".toUri() // Ensure your package name is correct
+                            activity?.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("BlockScreen", "Error opening SCHEDULE_EXACT_ALARM settings: ${e.message}", e)
+                        }
                     }) {
                         Text(text = "Grant Alarm Permission")
                     }

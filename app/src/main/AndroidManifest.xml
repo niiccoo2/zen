@@ -7,6 +7,8 @@
         tools:ignore="QueryAllPackagesPermission"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -31,7 +33,7 @@
         </activity>
 
         <activity
-            android:name=".activities.OverlayActivity"
+            android:name=".ui.screens.OverlayActivity"
             android:theme="@style/Theme.Zen"
             android:exported="false"
             android:launchMode="singleTask"
@@ -52,6 +54,12 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <service
+            android:name=".services.ForegroundAppCheckerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver
             android:name=".utils.AlarmReceiver"

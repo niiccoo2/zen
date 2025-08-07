@@ -8,7 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import xyz.niiccoo2.zen.activities.OverlayActivity
+import xyz.niiccoo2.zen.ui.screens.OverlayActivity
 import xyz.niiccoo2.zen.services.ZenAccessibilityService.Companion.ACTION_SHOW_BLOCK_OVERLAY
 import xyz.niiccoo2.zen.services.ZenAccessibilityService.Companion.EXTRA_APP_NAME
 import xyz.niiccoo2.zen.services.ZenAccessibilityService.Companion.EXTRA_PACKAGE_NAME

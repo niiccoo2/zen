@@ -183,7 +183,6 @@ fun TimePickerDialog( // Renamed for clarity, and it's now a full dialog
     val timePickerState: TimePickerState = rememberTimePickerState(
         initialHour = initialHour ?: currentCalendar.get(java.util.Calendar.HOUR_OF_DAY),
         initialMinute = initialMinute ?: currentCalendar.get(java.util.Calendar.MINUTE),
-        is24Hour = true,
     )
 
     AlertDialog(

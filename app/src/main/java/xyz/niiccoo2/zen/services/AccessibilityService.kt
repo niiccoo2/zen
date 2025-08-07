@@ -58,45 +58,55 @@ class ZenAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.packageName == null) { // More concise null check
-            // Log.v(TAG, "Event or package name was null, ignoring.") // Optional: reduce verbosity
+        if (event?.packageName == null) {
             return
         }
 
-        val packageName = event.packageName.toString()
+        val packageNameString = event.packageName.toString()
 
-        // Only act on window state changes, as before
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // The core logic is now much simpler:
-            // If the app that just came to the foreground is in our set of
-            // effectively blocked apps, then trigger the overlay.
-            // The AppSettings.getEffectivelyBlockedPackagesFlow() has already done
-            // the heavy lifting of checking schedules and break status.
-            if (packageName in currentEffectivelyBlockedApps) {
-                Log.i(TAG, "App $packageName is currently effectively blocked. Showing overlay.")
+            Log.i(TAG, "Received accessibility event for $packageNameString")
 
-                var appName = packageName // Default to package name
-                try {
-                    val pm = packageManager
-                    val applicationInfo = pm.getApplicationInfo(packageName, 0)
-                    appName = pm.getApplicationLabel(applicationInfo).toString()
-                } catch (e: PackageManager.NameNotFoundException) {
-                    Log.w(TAG, "Could not get app name for $packageName. Using package name.", e)
+            // Launch a coroutine to check the current blocking status for THIS app
+            // This is important because AppSettings.isAppEffectivelyBlockedNow is a suspend function
+            serviceScope.launch {
+                val isBlockedNow = AppSettings.isAppEffectivelyBlockedNow(applicationContext, packageNameString)
+
+                if (isBlockedNow) {
+                    Log.i(TAG, "App $packageNameString is currently effectively blocked (checked on event). Showing overlay.")
+                    showBlockOverlay(packageNameString)
+                } else {
+                    Log.i(TAG, "App $packageNameString is NOT currently effectively blocked (checked on event). Overlay NOT shown.")
+                    // Optional: You could still check against the passively updated currentEffectivelyBlockedApps
+                    // if you want to catch blocks that were active due to a very recent settings change
+                    // that isAppEffectivelyBlockedNow might not have caught if the DataStore read is slightly delayed.
+                    // However, usually isAppEffectivelyBlockedNow would be more up-to-date.
+                    // if (packageNameString in currentEffectivelyBlockedApps) {
+                    //    Log.i(TAG, "App $packageNameString was in passively updated list. Showing overlay anyway.")
+                    //    showBlockOverlay(packageNameString)
+                    // }
                 }
-
-                val overlayTriggerIntent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
-                    putExtra(EXTRA_PACKAGE_NAME, packageName)
-                    putExtra(EXTRA_APP_NAME, appName) // Pass the resolved app name
-                    // Important: Set the package for the broadcast to ensure it's handled by your app
-                    setPackage(this@ZenAccessibilityService.packageName)
-                }
-                sendBroadcast(overlayTriggerIntent)
-                Log.d(TAG, "Broadcast sent for $appName ($packageName) to show overlay: $ACTION_SHOW_BLOCK_OVERLAY")
-
-            } else {
-                // Log.v(TAG, "App $packageName is NOT currently effectively blocked. Overlay NOT shown.") // Optional verbose log
             }
         }
+    }
+
+    private fun showBlockOverlay(packageName: String) {
+        var appName = packageName
+        try {
+            val pm = packageManager
+            val applicationInfo = pm.getApplicationInfo(packageName, 0)
+            appName = pm.getApplicationLabel(applicationInfo).toString()
+        } catch (e: PackageManager.NameNotFoundException) {
+            Log.w(TAG, "Could not get app name for $packageName. Using package name.", e)
+        }
+
+        val overlayTriggerIntent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
+            putExtra(EXTRA_PACKAGE_NAME, packageName)
+            putExtra(EXTRA_APP_NAME, appName)
+            setPackage(this@ZenAccessibilityService.packageName)
+        }
+        sendBroadcast(overlayTriggerIntent)
+        Log.d(TAG, "Broadcast sent for $appName ($packageName) to show overlay: $ACTION_SHOW_BLOCK_OVERLAY")
     }
 
     override fun onInterrupt() {

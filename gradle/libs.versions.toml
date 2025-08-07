@@ -17,6 +17,7 @@ lifecycleRuntimeKtxVersion = "2.7.0"
 navigationCompose = "2.9.3"
 places = "4.4.1"
 media3CommonKtx = "1.8.0"
+composeMaterialCore = "1.4.1"
 
 [libraries]
 androidx-activity-compose-v190 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
@@ -44,6 +45,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 places = { group = "com.google.android.libraries.places", name = "places", version.ref = "places" }
 androidx-media3-common-ktx = { group = "androidx.media3", name = "media3-common-ktx", version.ref = "media3CommonKtx" }
+androidx-compose-material-core = { group = "androidx.wear.compose", name = "compose-material-core", version.ref = "composeMaterialCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import xyz.niiccoo2.zen.activities.OverlayActivity // Make sure this path is correct!
+import xyz.niiccoo2.zen.ui.screens.OverlayActivity // Make sure this path is correct!
 // Import the constants from your Accessibility Service
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 

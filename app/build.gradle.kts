@@ -60,7 +60,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences) // Or the latest version
     implementation(libs.androidx.lifecycle.runtime.ktx.v270) // For lifecycleScope
     implementation(libs.kotlinx.serialization.json) // Check for the latest version
-    implementation(libs.androidx.datastore.preferences.v111) // Ensure you have this
+    implementation(libs.androidx.datastore.preferences.v111)
+    implementation(libs.androidx.compose.material.core) // Ensure you have this
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

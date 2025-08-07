@@ -1,4 +1,4 @@
-package xyz.niiccoo2.zen.activities // Or your preferred package
+package xyz.niiccoo2.zen.ui.screens // Or your preferred package
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.copy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,14 +20,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
@@ -117,6 +127,58 @@ class OverlayActivity : ComponentActivity() {
 
 }
 
+@Composable
+fun AutosizeText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge, // Default style
+    maxLines: Int = 1, // Crucial for single-line auto-sizing
+    targetFontSize: TextUnit = style.fontSize, // The ideal font size you want to achieve
+    minFontSize: TextUnit = 8.sp // A reasonable minimum font size
+) {
+    var currentFontSize by remember(text, targetFontSize, minFontSize) { mutableStateOf(targetFontSize) }
+    var readyToDraw by remember(text, targetFontSize, minFontSize) { mutableStateOf(false) }
+
+    // If the text or target/min font size changes, reset the readyToDraw flag
+    // and currentFontSize to allow recalculation.
+    // This is implicitly handled by `remember` keys above if these parameters change.
+
+    BasicText(
+        text = text,
+        modifier = modifier.then(
+            Modifier.drawWithContent {
+                if (readyToDraw) {
+                    drawContent()
+                }
+            }
+        ),
+        style = style.copy(fontSize = currentFontSize),
+        maxLines = maxLines,
+        overflow = TextOverflow.Clip, // Clip if it still overflows at minFontSize
+        onTextLayout = { textLayoutResult ->
+            if (textLayoutResult.hasVisualOverflow && currentFontSize.value > minFontSize.value) {
+                // Check if the text actually overflowed its container visually.
+                // didOverflowHeight might be true if the text height exceeds the line height,
+                // but hasVisualOverflow is more accurate for "did it fit in the available width for a single line".
+
+                // Reduce font size. You can adjust the factor (0.9f) as needed.
+                val newCalculatedSizeValue = currentFontSize.value * 0.9f
+
+                // Ensure the new font size doesn't go below minFontSize
+                currentFontSize = if (newCalculatedSizeValue > minFontSize.value) {
+                    newCalculatedSizeValue.sp
+                } else {
+                    minFontSize
+                }
+                readyToDraw = false // Trigger re-layout
+            } else {
+                // Text fits or minFontSize has been reached
+                readyToDraw = true
+            }
+        }
+    )
+}
+
 // --- BlockingScreenComposable remains the same ---
 @Composable
 fun BlockingScreenComposable(
@@ -146,10 +208,16 @@ fun BlockingScreenComposable(
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
+            AutosizeText(
                 text = "You've spent $appTime on $appName.",
-                fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.onBackground
+                style = MaterialTheme.typography.bodyLarge.copy( // Or another base style
+                    fontSize = 18.sp, // This becomes the initial targetFontSize if not overridden
+                    color = MaterialTheme.colorScheme.onBackground
+                ),
+                targetFontSize = 18.sp, // Explicitly set the desired maximum size
+                minFontSize = 10.sp,    // Set your desired minimum shrink size
+                maxLines = 1,           // Ensure it tries to fit on one line
+                modifier = Modifier.fillMaxWidth() // Give it the full width to calculate against
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -162,7 +230,15 @@ fun BlockingScreenComposable(
                 onClick = onContinueToApp,
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {
-                Text("Unblock $appName for 5 minutes")
+                AutosizeText(
+                    text = "Unblock $appName for 5 minutes",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        color = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    targetFontSize = MaterialTheme.typography.labelLarge.fontSize, // e.g., 14.sp
+                    minFontSize = 10.sp, // Your desired minimum
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(

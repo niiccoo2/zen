@@ -21,7 +21,7 @@ import java.time.LocalTime
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "zen_settings")
 
 // Helper function to check if an app is currently blocked based on its schedule
-fun isCurrentlyBlocked(
+fun isCurrentlyBlocked( // How does this know what app its checking for...
     scheduledBlocks: List<TimeBlock>,
     currentTime: LocalDateTime
 ): Boolean {
@@ -32,6 +32,11 @@ fun isCurrentlyBlocked(
     val nowTime = currentTime.toLocalTime()
 
     for (block in scheduledBlocks) {
+        Log.i("TAG", "Checking block: $block")
+        Log.i("TAG", "nowTime: $nowTime")
+        Log.i("TAG", "block.startTime: ${block.startTime}")
+        Log.i("TAG", "block.endTime: ${block.endTime}")
+
         // Handle "always blocked" case (covers the entire day)
         if (block.startTime == LocalTime.MIN && block.endTime == LocalTime.MAX) {
             return true // Always blocked
@@ -133,6 +138,43 @@ object AppSettings {
     suspend fun getSpecificAppSetting(context: Context, packageName: String): BlockedAppSettings? {
         if (packageName.isEmpty()) return null
         return getBlockedAppSettingsMap(context).first()[packageName]
+    }
+
+    /**
+     * Checks if a specific app is effectively blocked right now.
+     * This involves fetching its current settings and evaluating them against the current time.
+     * An app is effectively blocked if:
+     * 1. It has settings.
+     * 2. It's NOT on break.
+     * 3. Its current schedule (from settings) indicates it should be blocked NOW.
+     *
+     * @param context The application context.
+     * @param packageName The package name of the app to check.
+     * @return True if the app is currently effectively blocked, false otherwise.
+     */
+    suspend fun isAppEffectivelyBlockedNow(context: Context, packageName: String): Boolean {
+        if (packageName.isEmpty()) {
+            Log.w("AppSettings", "isAppEffectivelyBlockedNow called with empty package name.")
+            return false
+        }
+
+        // 1. Get the specific app's settings
+        val settings = getSpecificAppSetting(context, packageName)
+
+        // 2. Check if settings exist and if the app is on break
+        if (settings == null) {
+            // Log.v("AppSettings", "No settings found for $packageName, not blocked.") // Optional: for debugging
+            return false // No settings, so not blocked
+        }
+        if (settings.isOnBreak) {
+            // Log.d("AppSettings", "$packageName is on break, not blocked.") // Optional: for debugging
+            return false // On break, so not blocked by schedule
+        }
+
+        // 3. Use the existing isCurrentlyBlocked logic with the current time
+        val now = LocalDateTime.now()
+        // 'isCurrentlyBlocked' is the helper function already defined at the top of your file.
+        return isCurrentlyBlocked(settings.scheduledBlocks, now)
     }
 
     suspend fun removeSpecificAppConfiguration(context: Context, packageName: String?) {
@@ -270,14 +312,9 @@ object AppSettings {
      */
     suspend fun removeAppFromBlockList(context: Context, packageName: String?) {
         if (packageName == null) return
-        // This will now remove all scheduled blocks for the app.
-        // If you want to only remove the "always blocked" status and revert to a
-        // previous custom schedule, the logic in BlockedAppSettings.setAlwaysBlocked(false)
-        // would need to be more sophisticated (e.g., storing previous custom schedule).
-        // For simplicity, this now just clears all schedules.
-        clearAppScheduledBlocking(context, packageName)
 
-        // Alternatively, if you want "remove from block list" to truly delete the app's config:
-        // removeSpecificAppConfiguration(context = context, packageName = packageName)
+        //clearAppScheduledBlocking(context, packageName) // This only clears the schedule
+
+        removeSpecificAppConfiguration(context = context, packageName = packageName)
     }
 }

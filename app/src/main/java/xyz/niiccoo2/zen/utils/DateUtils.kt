@@ -1,10 +1,20 @@
 package xyz.niiccoo2.zen.utils
 
+import android.content.Context
+import androidx.annotation.OptIn
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.util.Log
+import androidx.media3.common.util.UnstableApi
+import androidx.wear.compose.materialcore.is24HourFormat
+import java.text.DateFormat
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlin.text.format
 
 /**
  * Returns the time at midnight in the users local timezone.
@@ -66,4 +76,56 @@ fun millisToNormalTime(millis: Long, longFormat : Boolean = false): String {
         }
     }
 
+}
+
+/**
+ * Formats LocalTime into a human-readable string, strictly respecting the
+ * device's system setting for 12/24 hour format.
+ *
+ * @param time The LocalTime to format.
+ * @param context The application context, needed to check the system's 12/24 hour setting.
+ * @return A formatted time string according to the device's 12/24 hour preference.
+ */
+@OptIn(UnstableApi::class) // Keep if Log.w from media3 is used
+fun formatLocalTime(time: LocalTime, context: Context): String {
+    return try {
+        val formatter: DateTimeFormatter
+        // Use the correct android.text.format.DateFormat.is24HourFormat
+        if (android.text.format.DateFormat.is24HourFormat(context)) {
+            // Device is set to 24-hour format
+            formatter = DateTimeFormatter.ofPattern("HH:mm")
+        } else {
+            // Device is set to 12-hour format
+            // Using ofLocalizedTime with SHORT style is appropriate here as it will include AM/PM
+            // and respect locale for AM/PM symbols.
+            formatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+            // Alternative explicit 12-hour pattern if ofLocalizedTime causes issues:
+            // formatter = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.getDefault())
+        }
+        time.format(formatter)
+    } catch (e: Exception) {
+        Log.w(
+            "TimeFormatUtil", // Consider a more generic tag if media3.Log is not always used
+            "Error formatting time $time. Falling back to default.",
+            e
+        )
+        time.toString() // Default ISO format e.g., "15:30"
+    }
+}
+
+fun getFormattedScheduledBlockTimes(appSettings: BlockedAppSettings, context: Context): String? {
+    if (appSettings.isEffectivelyAlwaysBlocked) {
+        return null
+    }
+    if (appSettings.scheduledBlocks.isEmpty() || appSettings.scheduledBlocks == TimeBlock.NO_SCHEDULE) {
+        return null
+    }
+
+    val formattedTimes = appSettings.scheduledBlocks.joinToString(separator = ", ") { timeBlock ->
+        // Pass context here
+        val startTimeFormatted = formatLocalTime(timeBlock.startTime, context)
+        val endTimeFormatted = formatLocalTime(timeBlock.endTime, context)
+        "$startTimeFormatted - $endTimeFormatted"
+    }
+    return "Blocked: $formattedTimes"
 }
