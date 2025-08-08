@@ -19,7 +19,7 @@ class AlarmReceiver : BroadcastReceiver() {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent) {
-        val pendingResult = goAsync() // Good practice for async work in receiver
+        val pendingResult = goAsync()
         val packageName = intent.getStringExtra(OverlayActivity.EXTRA_PACKAGE_TO_BLOCK)
         Log.d("AlarmReceiver", "Alarm fired!")
 
@@ -28,17 +28,17 @@ class AlarmReceiver : BroadcastReceiver() {
 
             coroutineScope.launch {
                 try {
-                    // 1. Add app back to the persistent block list
+
                     clearAppBreak(context, packageName)
                     Log.d("AlarmReceiver", "$packageName added back to block list.")
 
-                    // 2. Check if this app is currently in the foreground
+
                     val foregroundApp = getForegroundAppPackageName(context)
                     Log.d("AlarmReceiver", "Current foreground app: $foregroundApp")
 
                     if (foregroundApp == packageName) {
                         Log.i("AlarmReceiver", "$packageName is currently in foreground. Triggering overlay directly.")
-                        // Get app name (similar to how AccessibilityService does it, or pass it in alarm intent too)
+
                         var appName = packageName
                         try {
                             val pm = context.packageManager
@@ -48,7 +48,7 @@ class AlarmReceiver : BroadcastReceiver() {
                             Log.e("AlarmReceiver", "Could not get app name for $packageName", e)
                         }
 
-                        // Send the same broadcast your AccessibilityService sends
+
                         val overlayTriggerIntent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
                             putExtra(EXTRA_PACKAGE_NAME, packageName)
                             putExtra(EXTRA_APP_NAME, appName)

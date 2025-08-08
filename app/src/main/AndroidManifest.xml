@@ -69,9 +69,8 @@
         <receiver
             android:name=".utils.OverlayTriggerReceiver"
             android:enabled="true"
-            android:exported="false"> <!-- 'false' is good since only our app sends/receives this -->
+            android:exported="false">
             <intent-filter>
-                <!-- This is the specific action our receiver listens for -->
                 <action android:name="xyz.niiccoo2.zen.action.SHOW_BLOCK_OVERLAY" />
             </intent-filter>
         </receiver>

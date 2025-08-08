@@ -241,7 +241,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         } else { // Permission Denied UI
             Column(
-                modifier = Modifier.fillMaxSize(), // Ensure this column also fills to center its content
+                modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {

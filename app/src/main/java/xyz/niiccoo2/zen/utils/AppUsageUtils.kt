@@ -21,14 +21,13 @@ import androidx.media3.common.util.UnstableApi
  */
 fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
     val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-    val usageEvents = usageStatsManager.queryEvents(start - (3 * 60 * 60 * 1000), end) // 3-hour buffer
+    val usageEvents = usageStatsManager.queryEvents(start - (3 * 60 * 60 * 1000), end)
 
     val usageMap = mutableMapOf<String, Long>()
     val lastResumedEvents = mutableMapOf<String, UsageEvents.Event>()
 
-    //val event = UsageEvents.Event()
     while (usageEvents.hasNextEvent()) {
-        val event = UsageEvents.Event()  // new object each iteration
+        val event = UsageEvents.Event()
         usageEvents.getNextEvent(event)
         val key = event.packageName + event.className
 
@@ -45,8 +44,6 @@ fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
             }
         }
     }
-
-    // Add ongoing sessions from last resumed events
     lastResumedEvents.values
         .groupBy { it.packageName }
         .forEach { (packageName, events) ->
@@ -54,7 +51,6 @@ fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
             usageMap[packageName] = usageMap.getOrDefault(packageName, 0L) + (end - mostRecent.timeStamp)
         }
 
-    // Return usage time in seconds
     return usageMap.filterValues { it > 0 }
         .mapValues { it.value }
 }
@@ -91,12 +87,12 @@ fun getSingleAppUsage(context: Context, packageName: String): Long {
  */
 fun hasUsageStatsPermission(context: Context): Boolean {
     val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    // If the permission is allowed mode == 0
+
     val packageName = context.packageName
     val mode = appOpsManager.checkOpNoThrow(
         AppOpsManager.OPSTR_GET_USAGE_STATS,
-        Process.myUid(), // This gets the UID of your app's process
-        packageName      // Use the dynamically obtained package name
+        Process.myUid(),
+        packageName
     )
     return mode == AppOpsManager.MODE_ALLOWED
 }
@@ -115,18 +111,18 @@ fun getAppNameAndIcon(context: Context, packageName: String?): Pair<String, Draw
         return null
     }
     return try {
-        // --- Code that might throw an exception goes in the 'try' block ---
-        val app = pm.getApplicationInfo(packageName, 0) // This line can throw NameNotFoundException
+
+        val app = pm.getApplicationInfo(packageName, 0)
         val name = pm.getApplicationLabel(app).toString()
         val icon = pm.getApplicationIcon(app)
-        Pair(name, icon) // If all goes well, return the Pair
-    } catch (_: PackageManager.NameNotFoundException) { // If package manager can't find the package
+        Pair(name, icon)
+    } catch (_: PackageManager.NameNotFoundException) {
         Log.w(
             "AppInfo",
             "Application package not found: $packageName. It might have been uninstalled."
         )
         null
-    } catch (_: Exception) { // To catch anything else
+    } catch (_: Exception) {
         Log.e(
             "AppInfo",
             "An unexpected error occurred while getting info for package: $packageName"
@@ -145,8 +141,8 @@ fun getForegroundAppPackageName(context: Context): String? {
     val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     var foregroundApp: String? = null
     val time = System.currentTimeMillis()
-    // Query events in a reasonable recent window (e.g., last 1 minute or 30 seconds)
-    val events = usageStatsManager.queryEvents(time - (1000 * 60000), time) // Query last 60 seconds
+
+    val events = usageStatsManager.queryEvents(time - (1000 * 60000), time)
     val event = UsageEvents.Event()
 
     var lastActivityResumedTime: Long = 0
@@ -154,16 +150,12 @@ fun getForegroundAppPackageName(context: Context): String? {
     while (events.hasNextEvent()) {
         events.getNextEvent(event)
 
-        // Use the non-deprecated constant ACTIVITY_RESUMED
         if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-            // Check if this ACTIVITY_RESUMED event is more recent
             if (event.timeStamp > lastActivityResumedTime) {
                 foregroundApp = event.packageName
                 lastActivityResumedTime = event.timeStamp
             }
         }
-        // You might also want to consider ACTIVITY_PAUSED if an app goes to background
-        // but for "current foreground", ACTIVITY_RESUMED is the primary one.
     }
 
     if (foregroundApp == null) {

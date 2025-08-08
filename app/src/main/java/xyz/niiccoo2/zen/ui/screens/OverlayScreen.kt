@@ -1,4 +1,4 @@
-package xyz.niiccoo2.zen.ui.screens // Or your preferred package
+package xyz.niiccoo2.zen.ui.screens
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -60,13 +60,9 @@ class OverlayActivity : ComponentActivity() {
         val receivedAppName = intent.getStringExtra(ZenAccessibilityService.EXTRA_APP_NAME)
 
         val alarmMgr = this.getSystemService(ALARM_SERVICE) as AlarmManager
-//        var alarmIntent: PendingIntent = Intent(this, AlarmReceiver::class.java).let { intent ->
-//            PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-//        }
 
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
 
-            // 'true' means this callback is enabled by default
             override fun handleOnBackPressed() {
                 Log.d("OverlayActivity", "Back press intercepted by OnBackPressedCallback. Doing nothing.")
             }
@@ -80,12 +76,11 @@ class OverlayActivity : ComponentActivity() {
                     appName = "$receivedAppName",
                     packageName = "$receivedPackageName",
                     onContinueToApp = {
-                        // Create the Intent with extras and the PendingIntent HERE
                         val intentForAlarm = Intent(this@OverlayActivity, AlarmReceiver::class.java).apply {
                             putExtra(EXTRA_PACKAGE_TO_BLOCK, receivedPackageName)
                         }
 
-                        val requestCode = receivedPackageName.hashCode() // Unique per package
+                        val requestCode = receivedPackageName.hashCode()
 
                         val pendingAlarmIntent: PendingIntent = PendingIntent.getBroadcast(
                             this@OverlayActivity,
@@ -101,11 +96,10 @@ class OverlayActivity : ComponentActivity() {
                         if (!alarmMgr.canScheduleExactAlarms()) {
                             Log.w("OverlayActivity", "Cannot schedule exact alarm, permission denied.")
                             Toast.makeText(this@OverlayActivity, "Exact alarm permission needed for re-blocking.", Toast.LENGTH_LONG).show()
-                            // Consider guiding to settings or making it clear re-blocking might fail
                         } else {
                             alarmMgr.setExactAndAllowWhileIdle(
                                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                                SystemClock.elapsedRealtime() + 300 * 1000, // Wait 5 minutes
+                                SystemClock.elapsedRealtime() + 300 * 1000, // 5 minutes
                                 pendingAlarmIntent
                             )
                             Log.d("OverlayActivity", "Alarm set to re-block $receivedPackageName in 5 minute.")
@@ -131,17 +125,13 @@ class OverlayActivity : ComponentActivity() {
 fun AutosizeText(
     text: String,
     modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.bodyLarge, // Default style
-    maxLines: Int = 1, // Crucial for single-line auto-sizing
-    targetFontSize: TextUnit = style.fontSize, // The ideal font size you want to achieve
-    minFontSize: TextUnit = 8.sp // A reasonable minimum font size
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    maxLines: Int = 1,
+    targetFontSize: TextUnit = style.fontSize,
+    minFontSize: TextUnit = 8.sp
 ) {
     var currentFontSize by remember(text, targetFontSize, minFontSize) { mutableStateOf(targetFontSize) }
     var readyToDraw by remember(text, targetFontSize, minFontSize) { mutableStateOf(false) }
-
-    // If the text or target/min font size changes, reset the readyToDraw flag
-    // and currentFontSize to allow recalculation.
-    // This is implicitly handled by `remember` keys above if these parameters change.
 
     BasicText(
         text = text,
@@ -154,32 +144,24 @@ fun AutosizeText(
         ),
         style = style.copy(fontSize = currentFontSize),
         maxLines = maxLines,
-        overflow = TextOverflow.Clip, // Clip if it still overflows at minFontSize
+        overflow = TextOverflow.Clip,
         onTextLayout = { textLayoutResult ->
             if (textLayoutResult.hasVisualOverflow && currentFontSize.value > minFontSize.value) {
-                // Check if the text actually overflowed its container visually.
-                // didOverflowHeight might be true if the text height exceeds the line height,
-                // but hasVisualOverflow is more accurate for "did it fit in the available width for a single line".
-
-                // Reduce font size. You can adjust the factor (0.9f) as needed.
                 val newCalculatedSizeValue = currentFontSize.value * 0.9f
 
-                // Ensure the new font size doesn't go below minFontSize
                 currentFontSize = if (newCalculatedSizeValue > minFontSize.value) {
                     newCalculatedSizeValue.sp
                 } else {
                     minFontSize
                 }
-                readyToDraw = false // Trigger re-layout
+                readyToDraw = false
             } else {
-                // Text fits or minFontSize has been reached
                 readyToDraw = true
             }
         }
     )
 }
 
-// --- BlockingScreenComposable remains the same ---
 @Composable
 fun BlockingScreenComposable(
     appName: String,
@@ -210,14 +192,14 @@ fun BlockingScreenComposable(
             Spacer(modifier = Modifier.height(16.dp))
             AutosizeText(
                 text = "You've spent $appTime on $appName.",
-                style = MaterialTheme.typography.bodyLarge.copy( // Or another base style
-                    fontSize = 18.sp, // This becomes the initial targetFontSize if not overridden
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 ),
-                targetFontSize = 18.sp, // Explicitly set the desired maximum size
-                minFontSize = 10.sp,    // Set your desired minimum shrink size
-                maxLines = 1,           // Ensure it tries to fit on one line
-                modifier = Modifier.fillMaxWidth() // Give it the full width to calculate against
+                targetFontSize = 18.sp,
+                minFontSize = 10.sp,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -235,8 +217,8 @@ fun BlockingScreenComposable(
                     style = MaterialTheme.typography.labelLarge.copy(
                         color = MaterialTheme.colorScheme.onPrimary
                     ),
-                    targetFontSize = MaterialTheme.typography.labelLarge.fontSize, // e.g., 14.sp
-                    minFontSize = 10.sp, // Your desired minimum
+                    targetFontSize = MaterialTheme.typography.labelLarge.fontSize,
+                    minFontSize = 10.sp,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
@@ -250,11 +232,3 @@ fun BlockingScreenComposable(
         }
     }
 }
-
-//@Preview(showBackground = true, device = "spec:shape=Normal,width=360,height=640,unit=dp,dpi=480")
-//@Composable
-//fun BlockingScreenPreview() {
-//    ZenTheme {
-//        BlockingScreenComposable(appName = "YouTube", onContinueToApp = {}, onDoSomethingElse = {})
-//    }
-//}

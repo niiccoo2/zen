@@ -8,9 +8,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
-import android.os.Build // Added for version checking
 import android.provider.Settings
-import android.util.Log // Added for logging
+import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -45,8 +44,8 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect // Added for side effects
-import androidx.compose.runtime.State // Added explicit import
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,10 +64,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import xyz.niiccoo2.zen.Destination
-import xyz.niiccoo2.zen.services.ForegroundAppCheckerService // Added import for your service
+import xyz.niiccoo2.zen.services.ForegroundAppCheckerService
 import xyz.niiccoo2.zen.services.ZenAccessibilityService
 import xyz.niiccoo2.zen.utils.AppSettings
 import xyz.niiccoo2.zen.utils.AppSettings.getSpecificAppSetting
@@ -78,9 +76,6 @@ import xyz.niiccoo2.zen.utils.getAppNameAndIcon
 import xyz.niiccoo2.zen.utils.getFormattedScheduledBlockTimes
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
 import xyz.niiccoo2.zen.utils.millisToNormalTime
-import java.time.LocalTime
-import java.time.format.FormatStyle
-import kotlin.text.format
 
 
 fun openAccessibilityServiceSettings(context: Context) {
@@ -136,20 +131,6 @@ fun BlockCard(blockedPackage: String) {
         }
     }
 
-    // This local helper function was inside BlockCard, ensure it's accessible
-    // or use the one from your utils if you moved it there.
-    // fun formatLocalTime(time: LocalTime, style: FormatStyle = FormatStyle.SHORT): String {
-    //     return try {
-    //         val formatter = DateTimeFormatter.ofLocalizedTime(style)
-    //         time.format(formatter)
-    //     } catch (e: Exception) {
-    //         Log.w("TimeFormatUtil", "Error formatting time $time with style $style. Falling back.", e)
-    //         time.toString()
-    //     }
-    // }
-    // It's better if formatLocalTime is a top-level function in your utils package
-    // and imported, rather than nested here. Assuming it is.
-
     val appDetails: Pair<String, Drawable?>? by remember(blockedPackage) {
         mutableStateOf(getAppNameAndIcon(context = context, packageName = blockedPackage))
     }
@@ -189,7 +170,7 @@ fun BlockCard(blockedPackage: String) {
                 )
 
                 // Display total time used
-                val totalTime by remember(blockedPackage, currentSettings) { // Also depends on currentSettings if that affects usage context
+                val totalTime by remember(blockedPackage, currentSettings) {
                     val usage = getSingleAppUsage(context = context, packageName = blockedPackage)
                     mutableStateOf(millisToNormalTime(usage, true))
                 }
@@ -200,7 +181,6 @@ fun BlockCard(blockedPackage: String) {
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // --- Integration of formatted block times ---
                 if (isLoadingSettings) {
                     Text(
                         text = "Loading schedule...",
@@ -209,14 +189,14 @@ fun BlockCard(blockedPackage: String) {
                         overflow = TextOverflow.Ellipsis
                     )
                 } else if (currentSettings != null) {
-                    val settings = currentSettings!! // Safe call due to null check
+                    val settings = currentSettings!!
                     val formattedBlockTimes = getFormattedScheduledBlockTimes(settings, context)
 
                     if (formattedBlockTimes != null) {
                         Text(
-                            text = formattedBlockTimes, // e.g., "Blocked: 10:00 AM - 5:00 PM"
+                            text = formattedBlockTimes,
                             style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2, // Allow some wrapping if multiple schedules
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     } else if (settings.isEffectivelyAlwaysBlocked) {
@@ -227,8 +207,7 @@ fun BlockCard(blockedPackage: String) {
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        // This case covers when scheduledBlocks is empty (NO_SCHEDULE)
-                        // and getFormattedScheduledBlockTimes returns null for it.
+
                         Text(
                             text = "No specific block schedule",
                             style = MaterialTheme.typography.bodySmall,
@@ -237,7 +216,6 @@ fun BlockCard(blockedPackage: String) {
                         )
                     }
                 } else {
-                    // This case is if currentSettings is null AFTER loading (e.g., error fetching)
                     Text(
                         text = "Schedule not available",
                         style = MaterialTheme.typography.bodySmall,
@@ -245,7 +223,6 @@ fun BlockCard(blockedPackage: String) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                // --- End of integration ---
 
             }
             Spacer(Modifier.width(8.dp))
@@ -253,9 +230,6 @@ fun BlockCard(blockedPackage: String) {
                 onClick = {
                     coroutineScope.launch {
                         removeAppFromBlockList(context, blockedPackage)
-                        // Optionally, you might want to trigger a refresh of the list
-                        // or rely on your AppSettings.getBlockedAppSettingsMap(context).collectAsState
-                        // to automatically update the parent BlockScreen.
                     }
                 },
                 modifier = Modifier.size(fabSize)
@@ -316,7 +290,6 @@ fun BlockScreen(
                 overlayPermissionGranted &&
                 canScheduleAlarms
 
-    // LaunchedEffect to manage the ForegroundAppCheckerService based on allPermissionsGranted
     LaunchedEffect(key1 = allPermissionsGranted, key2 = context) {
         val serviceIntent = Intent(context, ForegroundAppCheckerService::class.java)
         if (allPermissionsGranted) {

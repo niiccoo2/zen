@@ -21,7 +21,6 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.Companion.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Call your main UI Composable here!
                     BottomNavigationBar()
                 }
             }

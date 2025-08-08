@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier) {
-    val uriHandler = LocalUriHandler.current // Get the UriHandler
+    val uriHandler = LocalUriHandler.current
 
     Box(
         modifier = modifier
@@ -26,7 +26,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) { // Center column content
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "There aren't any settings for the settings screen yet. :(",
                 style = MaterialTheme.typography.titleSmall
@@ -39,26 +39,24 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.titleSmall
             )
 
-            Spacer(modifier = Modifier.height(24.dp)) // Added more space
+            Spacer(modifier = Modifier.height(24.dp))
 
             val websiteUrl = "https://niiccoo2.xyz/zen"
             Text(
                 text = "Visit my Website",
-                style = MaterialTheme.typography.bodyLarge.copy( // Or another appropriate style
-                    color = MaterialTheme.colorScheme.primary, // Make it look like a link
-                    textDecoration = TextDecoration.Underline // Underline to indicate clickability
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline
                 ),
                 modifier = Modifier
                     .clickable {
                         try {
                             uriHandler.openUri(websiteUrl)
                         } catch (e: Exception) {
-                            // Handle potential errors, e.g., no browser installed (rare on Android)
-                            // You could show a Toast or log an error
                             println("Could not open URL: $websiteUrl. Error: ${e.message}")
                         }
                     }
-                    .padding(8.dp) // Add some padding to make it easier to tap
+                    .padding(8.dp)
             )
         }
     }

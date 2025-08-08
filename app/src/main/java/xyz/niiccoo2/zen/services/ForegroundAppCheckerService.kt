@@ -9,8 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager // Added for PackageManager
-import android.os.Build
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -21,8 +20,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import xyz.niiccoo2.zen.activities.MainActivity // Replace with your actual main activity
-import xyz.niiccoo2.zen.R          // Replace with your actual R class
+import xyz.niiccoo2.zen.R
+import xyz.niiccoo2.zen.activities.MainActivity
 import xyz.niiccoo2.zen.utils.AppSettings
 import xyz.niiccoo2.zen.utils.getForegroundAppPackageName
 import xyz.niiccoo2.zen.utils.hasUsageStatsPermission
@@ -40,8 +39,6 @@ class ForegroundAppCheckerService : Service() {
         const val EXTRA_PACKAGE_NAME = "xyz.niiccoo2.zen.extra.PACKAGE_NAME"
         const val EXTRA_APP_NAME = "xyz.niiccoo2.zen.extra.APP_NAME" // Added this constant
 
-        // Optional: Action to hide block overlay
-        // const val ACTION_HIDE_BLOCK_OVERLAY = "xyz.niiccoo2.zen.action.HIDE_BLOCK_OVERLAY"
     }
 
     private val serviceJob = Job()
@@ -81,7 +78,7 @@ class ForegroundAppCheckerService : Service() {
         }
         registerReceiver(screenStateReceiver, filter)
 
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         isScreenOn =
             powerManager.isInteractive
 
@@ -93,8 +90,7 @@ class ForegroundAppCheckerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand received")
-        // It's good practice to ensure periodic checks are running if the service is explicitly started
-        // and the screen is on. This handles cases where the service might be restarted by the system.
+
         if (isScreenOn) {
             startPeriodicChecks()
         }
@@ -120,7 +116,7 @@ class ForegroundAppCheckerService : Service() {
                 if (foregroundAppPackageName.isNullOrEmpty() || foregroundAppPackageName == packageName) {
                     if (currentlyBlockedAppByThisService != null) {
                         Log.d(TAG, "Foreground app is self, empty, or changed. Clearing our block state for ${currentlyBlockedAppByThisService}.")
-                        // Consider sending a HIDE_BLOCK_OVERLAY broadcast here if needed
+
                         currentlyBlockedAppByThisService = null
                     }
                     if (isScreenOn) handler.postDelayed(periodicCheckRunnable, CHECK_INTERVAL_MS)
@@ -133,7 +129,6 @@ class ForegroundAppCheckerService : Service() {
                 if (shouldBeBlocked) {
                     if (currentlyBlockedAppByThisService != foregroundAppPackageName) {
                         Log.i(TAG, "App $foregroundAppPackageName should be blocked. Sending show overlay broadcast.")
-                        // The following function now fetches the app name
                         sendShowBlockOverlayBroadcast(foregroundAppPackageName)
                         currentlyBlockedAppByThisService = foregroundAppPackageName
                     } else {
@@ -142,7 +137,6 @@ class ForegroundAppCheckerService : Service() {
                 } else {
                     if (currentlyBlockedAppByThisService == foregroundAppPackageName) {
                         Log.i(TAG, "App $foregroundAppPackageName should NO LONGER be blocked by schedule. Clearing our state.")
-                        // Consider sending a HIDE_BLOCK_OVERLAY broadcast here if needed
                         currentlyBlockedAppByThisService = null
                     }
                 }
@@ -164,7 +158,7 @@ class ForegroundAppCheckerService : Service() {
         handler.removeCallbacks(periodicCheckRunnable)
     }
 
-    // Modified function to include app name
+
     private fun sendShowBlockOverlayBroadcast(packageNameStr: String) {
         var appName = packageNameStr // Default to package name if app name retrieval fails
         try {
@@ -177,8 +171,7 @@ class ForegroundAppCheckerService : Service() {
 
         val intent = Intent(ACTION_SHOW_BLOCK_OVERLAY).apply {
             putExtra(EXTRA_PACKAGE_NAME, packageNameStr)
-            putExtra(EXTRA_APP_NAME, appName) // Add the app name as an extra
-            // Ensure the broadcast is explicit by setting the package
+            putExtra(EXTRA_APP_NAME, appName)
             setPackage(this@ForegroundAppCheckerService.packageName)
         }
         sendBroadcast(intent)
@@ -186,15 +179,15 @@ class ForegroundAppCheckerService : Service() {
     }
 
     private fun createNotification(): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java) // Ensure MainActivity is correct
+        val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntentFlags =
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, pendingIntentFlags)
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name) + " Checker Active") // Using string resource for app name
+            .setContentTitle(getString(R.string.app_name) + " Checker Active")
             .setContentText("Monitoring apps for scheduled blocks.")
-            .setSmallIcon(R.drawable.outline_lock_24_white) // Ensure this drawable exists
+            .setSmallIcon(R.drawable.outline_lock_24_white)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -222,9 +215,7 @@ class ForegroundAppCheckerService : Service() {
             Log.w(TAG, "Screen state receiver was not registered or already unregistered.", e)
         }
         stopPeriodicChecks()
-        serviceJob.cancel() // Cancel coroutines
-
-        // Use STOP_FOREGROUND_REMOVE to remove the notification when the service is stopped
+        serviceJob.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         Log.d(TAG, "Foreground service stopped.")
     }

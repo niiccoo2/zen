@@ -62,7 +62,7 @@ import java.util.Locale
 data class AppDisplayInfo(
     val packageName: String,
     val name: String,
-    val icon: android.graphics.drawable.Drawable? // Or whatever type getAppNameAndIcon returns for icon
+    val icon: android.graphics.drawable.Drawable?
 )
 
 /**
@@ -80,12 +80,11 @@ fun getInstalledPackageNames(context: Context): List<AppDisplayInfo> {
             (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 || (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
         }
         .mapNotNull { appInfo ->
-            // Assuming getAppNameAndIcon can be adapted or directly use appInfo
             val name = appInfo.loadLabel(pm).toString()
             val icon = try { appInfo.loadIcon(pm) } catch (_: Exception) { null }
             AppDisplayInfo(appInfo.packageName, name, icon)
         }
-        .sortedBy { it.name.lowercase() } // Sort by app name, case-insensitive
+        .sortedBy { it.name.lowercase() }
 }
 
 
@@ -101,9 +100,7 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
         } else {
             allPackageNames.filter { app ->
                 app.name.contains(searchText, ignoreCase = true)
-                // You could also filter by package name if desired:
-                // app.name.contains(searchText, ignoreCase = true) ||
-                // app.packageName.contains(searchText, ignoreCase = true)
+
             }
         }
     }
@@ -124,7 +121,7 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f), // Takes remaining space
+                    .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -154,9 +151,9 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
                             model = app.icon,
                             contentDescription = "${app.name} icon",
                             modifier = Modifier.size(48.dp),
-                            //error = painterResource(id = R.drawable.ic_android_black_24dp) // Replace with your placeholder
+
                         )
-                        Spacer(Modifier.width(16.dp)) // Slightly more space
+                        Spacer(Modifier.width(16.dp))
                         Text(
                             text = app.name,
                             style = MaterialTheme.typography.titleMedium,
@@ -172,13 +169,13 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TimePickerDialog( // Renamed for clarity, and it's now a full dialog
+fun TimePickerDialog(
     onConfirm: (hour: Int, minute: Int) -> Unit,
-    onDismiss: () -> Unit, // This will now be triggered by AlertDialog's onDismissRequest
+    onDismiss: () -> Unit,
     initialHour: Int? = null,
     initialMinute: Int? = null
 ) {
-    val currentCalendar = java.util.Calendar.getInstance() // Using java.util.Calendar if not already imported
+    val currentCalendar = java.util.Calendar.getInstance()
 
     val timePickerState: TimePickerState = rememberTimePickerState(
         initialHour = initialHour ?: currentCalendar.get(java.util.Calendar.HOUR_OF_DAY),
@@ -186,26 +183,17 @@ fun TimePickerDialog( // Renamed for clarity, and it's now a full dialog
     )
 
     AlertDialog(
-        onDismissRequest = onDismiss, // Call onDismiss when the dialog is dismissed (e.g., by back press or clicking outside)
-        // You can customize title, shape, colors etc.
-        // title = { Text("Select Time") },
-        // shape = RoundedCornerShape(16.dp),
-        text = { // The content of the dialog
-            // TimePicker is the full clock face picker.
-            // If you prefer the TimeInput fields, you can use that instead,
-            // or use a TimePicker with a toggle for input mode.
+        onDismissRequest = onDismiss,
+        text = {
             TimePicker(
                 state = timePickerState,
-                modifier = Modifier.fillMaxWidth() // Adjust as needed
+                modifier = Modifier.fillMaxWidth()
             )
-            // If using TimeInput instead of TimePicker:
-            // TimeInput(state = timePickerState, modifier = Modifier.fillMaxWidth())
         },
         confirmButton = {
             Button(
                 onClick = {
                     onConfirm(timePickerState.hour, timePickerState.minute)
-                    // onDismiss() // Also call onDismiss to ensure the dialog closes after confirm
                 }
             ) {
                 Text("Confirm")
@@ -248,14 +236,12 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
                     selectedEndHour = firstBlock.endTime.hour
                     selectedEndMinute = firstBlock.endTime.minute
                 } else {
-                    // Reset times if always blocked or no schedule
                     selectedStartHour = null
                     selectedStartMinute = null
                     selectedEndHour = null
                     selectedEndMinute = null
                 }
             } else {
-                // Default to always blocked if no settings exist
                 isAlwaysBlocked = true
                 selectedStartHour = null
                 selectedStartMinute = null
@@ -289,7 +275,6 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Row for Icon and App Name (as before)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -305,7 +290,6 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
 
         Spacer(Modifier.height(16.dp))
 
-        // Settings content area
         Column(modifier = Modifier.weight(1f)) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -367,7 +351,6 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
                         AppSettings.setAppAsAlwaysBlocked(context, selectedPackageName)
                         Log.d("NewBlockSettings", "Saved $selectedPackageName as always blocked.")
                     } else {
-                        // Ensure both start and end times are selected for a custom schedule
                         if (selectedStartHour != null && selectedStartMinute != null &&
                             selectedEndHour != null && selectedEndMinute != null
                         ) {
@@ -375,25 +358,22 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
                             val endTime = LocalTime.of(selectedEndHour!!, selectedEndMinute!!)
                             val customBlock = TimeBlock(startTime, endTime)
 
-                            // Update existing settings or create new ones with this single block
                             AppSettings.updateSpecificAppSetting(context, selectedPackageName) { existingSettings ->
                                 existingSettings.copy(
-                                    scheduledBlocks = listOf(customBlock), // Replace with the new single block
-                                    isOnBreak = false // Ensure break is off when setting schedule
+                                    scheduledBlocks = listOf(customBlock),
+                                    isOnBreak = false // Make sure break is off when setting schedule
                                 )
                             }
                             Log.d("NewBlockSettings", "Saved custom schedule for $selectedPackageName: $customBlock")
                         } else {
-                            // Handle case where times are not fully set for custom block
                             Log.w("NewBlockSettings", "Custom schedule not saved. Start or end time missing.")
-                            // Optionally show a message to the user
-                            // Toast.makeText(context, "Please select both start and end times.", Toast.LENGTH_LONG).show()
-                            return@launch // Don't proceed with saving if times are incomplete
+
+                            return@launch
                         }
                     }
-                    // Optionally navigate back or show a success message
+
                     navController.popBackStack()
-                    // Toast.makeText(context, "Settings Saved for $name", Toast.LENGTH_SHORT).show()
+
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -462,8 +442,7 @@ fun NewBlock(
                 AppList(
                     onAppClick = { packageName ->
                         Log.d("NewBlockScreen", "App clicked in AppList! Package: $packageName")
-                        selectedPackageName = packageName // Update state to show settings
-                        // Now NewBlockSettings will be shown for this package
+                        selectedPackageName = packageName
                     }
                 )
             } else {

@@ -17,16 +17,14 @@ import java.io.IOException
 import java.time.LocalDateTime
 import java.time.LocalTime
 
-// Create a DataStore instance
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "zen_settings")
 
-// Helper function to check if an app is currently blocked based on its schedule
-fun isCurrentlyBlocked( // How does this know what app its checking for...
+fun isCurrentlyBlocked( // How does this know what app its checking for... only passes one apps schedule
     scheduledBlocks: List<TimeBlock>,
     currentTime: LocalDateTime
 ): Boolean {
     if (scheduledBlocks.isEmpty()) {
-        return false // No schedule, so not blocked by schedule
+        return false
     }
 
     val nowTime = currentTime.toLocalTime()
@@ -37,41 +35,35 @@ fun isCurrentlyBlocked( // How does this know what app its checking for...
         Log.i("TAG", "block.startTime: ${block.startTime}")
         Log.i("TAG", "block.endTime: ${block.endTime}")
 
-        // Handle "always blocked" case (covers the entire day)
         if (block.startTime == LocalTime.MIN && block.endTime == LocalTime.MAX) {
-            return true // Always blocked
+            return true
         }
 
-        // Handle blocks that DO NOT cross midnight
         if (block.startTime.isBefore(block.endTime) || block.startTime == block.endTime) {
             if ((nowTime.isAfter(block.startTime) || nowTime == block.startTime) &&
                 nowTime.isBefore(block.endTime)
             ) {
                 return true
             }
-        } else { // Handle blocks that DO cross midnight (e.g., 9 PM to 9 AM)
-            if (nowTime.isAfter(block.startTime) || nowTime == block.startTime || // After start until midnight
-                nowTime.isBefore(block.endTime) // From midnight until end
+        } else {
+            if (nowTime.isAfter(block.startTime) || nowTime == block.startTime ||
+                nowTime.isBefore(block.endTime)
             ) {
                 return true
             }
         }
     }
-    return false // Not within any defined block
+    return false
 }
 
 
 object AppSettings {
 
-    // Increment version if schema changes significantly and needs migration logic (not implemented here)
     private val BLOCKED_APP_SETTINGS_MAP_KEY = stringPreferencesKey("blocked_app_settings_map_v4")
 
     private val json = Json {
-        ignoreUnknownKeys = true // Important for schema evolution
+        ignoreUnknownKeys = true
         isLenient = true
-        // Make sure LocalTimeSerializer is available to this Json instance if not globally configured
-        // serializersModule = SerializersModule { contextual(LocalTime::class, LocalTimeSerializer) }
-        // However, @Serializable(with=...) should be sufficient without contextual.
     }
 
     fun getBlockedAppSettingsMap(context: Context): Flow<Map<String, BlockedAppSettings>> {
@@ -81,7 +73,7 @@ object AppSettings {
                     Log.e("AppSettings", "Error reading preferences.", exception)
                     emit(emptyPreferences())
                 } else {
-                    Log.e("AppSettings", "Non-IOException reading preferences.", exception) // Log other errors too
+                    Log.e("AppSettings", "Non-IOException reading preferences.", exception)
                     throw exception
                 }
             }
@@ -92,10 +84,10 @@ object AppSettings {
                         json.decodeFromString<Map<String, BlockedAppSettings>>(jsonString)
                     } catch (e: Exception) {
                         Log.e("AppSettings", "Error decoding BlockedAppSettingsMap JSON V4", e)
-                        emptyMap<String, BlockedAppSettings>()
+                        emptyMap()
                     }
                 } else {
-                    emptyMap<String, BlockedAppSettings>()
+                    emptyMap()
                 }
             }
     }
@@ -117,13 +109,12 @@ object AppSettings {
         packageName: String?,
         updateAction: (BlockedAppSettings) -> BlockedAppSettings
     ) {
-        if (packageName.isNullOrEmpty()) { // check for empty too
+        if (packageName.isNullOrEmpty()) {
             Log.w("AppSettings", "updateSpecificAppSetting called with null or empty package name.")
             return
         }
 
         val currentMap = getBlockedAppSettingsMap(context).first()
-        // Ensure packageName is non-null for BlockedAppSettings constructor
         val defaultSettings = BlockedAppSettings(packageName = packageName, scheduledBlocks = TimeBlock.NO_SCHEDULE, isOnBreak = false)
         val existingSettings = currentMap[packageName] ?: defaultSettings
 
@@ -158,22 +149,16 @@ object AppSettings {
             return false
         }
 
-        // 1. Get the specific app's settings
         val settings = getSpecificAppSetting(context, packageName)
 
-        // 2. Check if settings exist and if the app is on break
         if (settings == null) {
-            // Log.v("AppSettings", "No settings found for $packageName, not blocked.") // Optional: for debugging
-            return false // No settings, so not blocked
+            return false
         }
         if (settings.isOnBreak) {
-            // Log.d("AppSettings", "$packageName is on break, not blocked.") // Optional: for debugging
-            return false // On break, so not blocked by schedule
+            return false
         }
 
-        // 3. Use the existing isCurrentlyBlocked logic with the current time
         val now = LocalDateTime.now()
-        // 'isCurrentlyBlocked' is the helper function already defined at the top of your file.
         return isCurrentlyBlocked(settings.scheduledBlocks, now)
     }
 
@@ -191,21 +176,15 @@ object AppSettings {
         }
     }
 
-    // --- NEW FUNCTIONS TO MANAGE BLOCKING STATES ---
-
     /**
      * Marks an app as "always blocked" by setting its schedule to the full day block.
      * Also ensures its break flag is false.
      */
     suspend fun setAppAsAlwaysBlocked(context: Context, packageName: String) {
         updateSpecificAppSetting(context, packageName) { settings ->
-            // Use the convenience function if available and settings is BlockedAppSettings type
-            // settings.setAlwaysBlocked(true)
-            // settings.copy(isOnBreak = false)
-            // Or directly:
             settings.copy(
                 scheduledBlocks = TimeBlock.ALWAYS_BLOCKED_SCHEDULE,
-                isOnBreak = false // Ensure break is off if setting to always blocked
+                isOnBreak = false
             )
         }
         Log.d("AppSettings", "Set $packageName as always blocked.")
@@ -218,8 +197,8 @@ object AppSettings {
     suspend fun clearAppScheduledBlocking(context: Context, packageName: String) {
         updateSpecificAppSetting(context, packageName) { settings ->
             settings.copy(
-                scheduledBlocks = TimeBlock.NO_SCHEDULE, // Clears all schedules
-                isOnBreak = false // Also clear break when removing from block list by default
+                scheduledBlocks = TimeBlock.NO_SCHEDULE,
+                isOnBreak = false
             )
         }
         Log.d("AppSettings", "Cleared scheduled blocking for $packageName.")
@@ -231,11 +210,8 @@ object AppSettings {
     suspend fun addCustomScheduleToApp(context: Context, packageName: String, timeBlock: TimeBlock) {
         updateSpecificAppSetting(context, packageName) { settings ->
             val newScheduledBlocks = settings.scheduledBlocks.toMutableList()
-            // Avoid adding if it's currently "always blocked" or if block already exists
             if (settings.isEffectivelyAlwaysBlocked) {
                 Log.w("AppSettings", "App $packageName is 'always blocked'. Clear that before adding custom schedule.")
-                // Decide behavior: replace "always blocked" or ignore?
-                // For now, let's assume we replace it:
                 newScheduledBlocks.clear()
                 newScheduledBlocks.add(timeBlock)
             } else if (!newScheduledBlocks.contains(timeBlock)) {
@@ -252,7 +228,6 @@ object AppSettings {
     suspend fun removeCustomScheduleFromApp(context: Context, packageName: String, timeBlock: TimeBlock) {
         updateSpecificAppSetting(context, packageName) { settings ->
             if (settings.isEffectivelyAlwaysBlocked && timeBlock == TimeBlock.ALWAYS_BLOCKED_SCHEDULE.firstOrNull()) {
-                // If removing the "always blocked" marker, set to no schedule
                 settings.copy(scheduledBlocks = TimeBlock.NO_SCHEDULE)
             } else {
                 val newScheduledBlocks = settings.scheduledBlocks.toMutableList()
@@ -267,7 +242,6 @@ object AppSettings {
     suspend fun setAppOnBreak(context: Context, packageName: String?) {
         updateSpecificAppSetting(context, packageName) { settings ->
             settings.copy(isOnBreak = true)
-            // Scheduled blocks are preserved. The break temporarily overrides them.
         }
         Log.d("AppSettings", "Set $packageName on break.")
     }
@@ -287,17 +261,12 @@ object AppSettings {
      */
     fun getEffectivelyBlockedPackagesFlow(context: Context): Flow<Set<String>> {
         return getBlockedAppSettingsMap(context).map { appSettingsMap ->
-            val now = LocalDateTime.now() // Get current time once per emission
+            val now = LocalDateTime.now()
             appSettingsMap.filter { (_, settings) ->
-                // An app is effectively blocked if:
-                // It's NOT 'isOnBreak' AND its schedule dictates it's currently blocked time.
                 !settings.isOnBreak && isCurrentlyBlocked(settings.scheduledBlocks, now)
-            }.keys // Get only the package names
+            }.keys
         }
     }
-
-
-    // --- Functions to replace your original simple Set<String> logic ---
 
     /**
      * Call this to mark an app as "always blocked". Replaces old add logic.
@@ -312,8 +281,6 @@ object AppSettings {
      */
     suspend fun removeAppFromBlockList(context: Context, packageName: String?) {
         if (packageName == null) return
-
-        //clearAppScheduledBlocking(context, packageName) // This only clears the schedule
 
         removeSpecificAppConfiguration(context = context, packageName = packageName)
     }

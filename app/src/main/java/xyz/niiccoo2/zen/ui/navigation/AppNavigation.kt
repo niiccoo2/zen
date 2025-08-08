@@ -9,13 +9,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import xyz.niiccoo2.zen.Destination
-import xyz.niiccoo2.zen.ui.screens.StatsScreen
 import xyz.niiccoo2.zen.ui.screens.BlockScreen
-import xyz.niiccoo2.zen.ui.screens.SettingsScreen
 import xyz.niiccoo2.zen.ui.screens.NewBlock
+import xyz.niiccoo2.zen.ui.screens.SettingsScreen
+import xyz.niiccoo2.zen.ui.screens.StatsScreen
 
 
-// This is our main navigation controller.
+
 @Composable
 fun AppNavHost(
     navController: NavHostController,       // The controller that manages navigation
@@ -23,8 +23,7 @@ fun AppNavHost(
     modifier: Modifier = Modifier           // Standard Compose modifier
 ) {
 
-    val veryFastAnimationSpec = tween<Float>(durationMillis = 50) // Makes frames to make the animation faster
-    // NavHost is the container that swaps different screen Composables
+    val veryFastAnimationSpec = tween<Float>(durationMillis = 50) // Makes frames to make animation faster
     NavHost(
         navController = navController,            // Pass the controller
         startDestination = startDestination.route, // Use the 'route' string from your enum
@@ -34,8 +33,6 @@ fun AppNavHost(
         popEnterTransition = { fadeIn(animationSpec = veryFastAnimationSpec) },
         popExitTransition = { fadeOut(animationSpec = veryFastAnimationSpec) }
     ) {
-        // Now, for each 'route' in your Destination enum, define what Composable screen to show.
-        // The 'route' string in composable() MUST MATCH the 'route' string in your Destination enum.
 
         composable(route = Destination.STATS.route) { StatsScreen() }
 

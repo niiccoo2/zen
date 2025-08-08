@@ -86,30 +86,24 @@ fun millisToNormalTime(millis: Long, longFormat : Boolean = false): String {
  * @param context The application context, needed to check the system's 12/24 hour setting.
  * @return A formatted time string according to the device's 12/24 hour preference.
  */
-@OptIn(UnstableApi::class) // Keep if Log.w from media3 is used
+@OptIn(UnstableApi::class)
 fun formatLocalTime(time: LocalTime, context: Context): String {
     return try {
         val formatter: DateTimeFormatter
-        // Use the correct android.text.format.DateFormat.is24HourFormat
         if (android.text.format.DateFormat.is24HourFormat(context)) {
-            // Device is set to 24-hour format
+
             formatter = DateTimeFormatter.ofPattern("HH:mm")
         } else {
-            // Device is set to 12-hour format
-            // Using ofLocalizedTime with SHORT style is appropriate here as it will include AM/PM
-            // and respect locale for AM/PM symbols.
             formatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-            // Alternative explicit 12-hour pattern if ofLocalizedTime causes issues:
-            // formatter = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.getDefault())
         }
         time.format(formatter)
     } catch (e: Exception) {
         Log.w(
-            "TimeFormatUtil", // Consider a more generic tag if media3.Log is not always used
+            "TimeFormatUtil",
             "Error formatting time $time. Falling back to default.",
             e
         )
-        time.toString() // Default ISO format e.g., "15:30"
+        time.toString()
     }
 }
 
@@ -122,7 +116,6 @@ fun getFormattedScheduledBlockTimes(appSettings: BlockedAppSettings, context: Co
     }
 
     val formattedTimes = appSettings.scheduledBlocks.joinToString(separator = ", ") { timeBlock ->
-        // Pass context here
         val startTimeFormatted = formatLocalTime(timeBlock.startTime, context)
         val endTimeFormatted = formatLocalTime(timeBlock.endTime, context)
         "$startTimeFormatted - $endTimeFormatted"

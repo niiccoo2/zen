@@ -25,8 +25,6 @@ class ZenAccessibilityService : AccessibilityService() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
-    // This set will now be populated by getEffectivelyBlockedPackagesFlow
-    // It contains package names that are currently scheduled to be blocked AND are not on break.
     @Volatile
     private var currentEffectivelyBlockedApps: Set<String> = emptySet()
 
@@ -41,15 +39,14 @@ class ZenAccessibilityService : AccessibilityService() {
             // packageNames = null // Listen to all apps
         }
         serviceInfo = info
-
-        observeEffectivelyBlockedApps() // Start observing the flow
+        // Start observing the flow
+        observeEffectivelyBlockedApps()
 
         Log.i(TAG, "Accessibility Service configured and observing effectively blocked apps.")
     }
 
     private fun observeEffectivelyBlockedApps() {
         serviceScope.launch {
-            // Use the new method from AppSettings
             AppSettings.getEffectivelyBlockedPackagesFlow(applicationContext).collectLatest { updatedEffectivelyBlockedPackages ->
                 Log.d(TAG, "Effectively blocked packages updated: $updatedEffectivelyBlockedPackages")
                 currentEffectivelyBlockedApps = updatedEffectivelyBlockedPackages
@@ -67,8 +64,6 @@ class ZenAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             Log.i(TAG, "Received accessibility event for $packageNameString")
 
-            // Launch a coroutine to check the current blocking status for THIS app
-            // This is important because AppSettings.isAppEffectivelyBlockedNow is a suspend function
             serviceScope.launch {
                 val isBlockedNow = AppSettings.isAppEffectivelyBlockedNow(applicationContext, packageNameString)
 
@@ -77,14 +72,7 @@ class ZenAccessibilityService : AccessibilityService() {
                     showBlockOverlay(packageNameString)
                 } else {
                     Log.i(TAG, "App $packageNameString is NOT currently effectively blocked (checked on event). Overlay NOT shown.")
-                    // Optional: You could still check against the passively updated currentEffectivelyBlockedApps
-                    // if you want to catch blocks that were active due to a very recent settings change
-                    // that isAppEffectivelyBlockedNow might not have caught if the DataStore read is slightly delayed.
-                    // However, usually isAppEffectivelyBlockedNow would be more up-to-date.
-                    // if (packageNameString in currentEffectivelyBlockedApps) {
-                    //    Log.i(TAG, "App $packageNameString was in passively updated list. Showing overlay anyway.")
-                    //    showBlockOverlay(packageNameString)
-                    // }
+
                 }
             }
         }
@@ -111,9 +99,7 @@ class ZenAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.w(TAG, "Accessibility Service interrupted.")
-        // serviceJob.cancel() // Consider if you want to cancel the job here or if onServiceConnected will handle restart
-        // The serviceJob will be cancelled in onDestroy. If the service is restarted by the system,
-        // onServiceConnected will be called again, and observeEffectivelyBlockedApps will restart.
+
     }
 
     override fun onDestroy() {
