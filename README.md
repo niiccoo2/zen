@@ -10,6 +10,7 @@ This screen shows you your total app usage for the day (from local midnight) and
 
 This is where most of the actions are, in this screen you can view your current app blocks, delete you app blocks, and make new ones.
 
+
 ### New block:
 <img src="./photos/New_Block.png" width="202.5" height="450">
 
