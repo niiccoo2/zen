@@ -58,6 +58,13 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     }
                     .padding(8.dp)
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Made with ❤\uFE0F by Nico",
+                style = MaterialTheme.typography.titleSmall
+            )
         }
     }
 }

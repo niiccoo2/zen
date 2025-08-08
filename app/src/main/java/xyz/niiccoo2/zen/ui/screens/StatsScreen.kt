@@ -49,31 +49,18 @@ import xyz.niiccoo2.zen.utils.millisToHourAndMinute
 
 data class Stat(
     val packageName: String,
-    val totalTime: Long
-    // Add any other fields AppUsageRowVisual might eventually need from a Stat object
+    val totalTime: Long,
+    val appName: String?,
+    val appIconDrawable: android.graphics.drawable.Drawable?
 )
 
 @Composable
 fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
-    val context = LocalContext.current
+
     val usagePercentage = if (totalUsageMillis > 0) {
         (stat.totalTime.toDouble() / totalUsageMillis.toDouble()) * 100
     } else {
         0.0
-    }
-
-    // Attempt to load app icon and name
-    val appInfo = remember(stat.packageName) {
-        try {
-            val pm = context.packageManager
-            val app = pm.getApplicationInfo(stat.packageName, 0)
-            object {
-                val name = pm.getApplicationLabel(app).toString()
-                val icon = pm.getApplicationIcon(app)
-            }
-        } catch (_: PackageManager.NameNotFoundException) {
-            null
-        }
     }
 
     Card(
@@ -86,21 +73,21 @@ fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (appInfo != null) {
+            if (stat.appIconDrawable != null) {
                 Image(
-                    painter = rememberAsyncImagePainter(model = appInfo.icon),
-                    contentDescription = "${appInfo.name} icon",
+                    painter = rememberAsyncImagePainter(model = stat.appIconDrawable),
+                    contentDescription = "${stat.appName ?: stat.packageName} icon",
                     modifier = Modifier.size(40.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
             } else {
-                Spacer(modifier = Modifier.size(40.dp)) // Placeholder if icon fails
+                Spacer(modifier = Modifier.size(40.dp))
                 Spacer(modifier = Modifier.width(12.dp))
             }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = appInfo?.name ?: stat.packageName,
+                    text = stat.appName ?: stat.packageName,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -128,7 +115,6 @@ fun AppUsageRowVisual(stat: Stat, totalUsageMillis: Long) {
                     fontSize = 16.sp
                 )
             }
-
         }
     }
 }
@@ -148,39 +134,39 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         mutableStateOf(hasUsageStatsPermission(context))
     }
 
-    // --- State variables for your data and loading status ---
-    // These are declared once for the StatsScreen
     var isLoading by remember { mutableStateOf(false) }
     var appStatsListState by remember { mutableStateOf<List<Stat>>(emptyList()) }
     var totalTimeMsState by remember { mutableLongStateOf(0L) }
-    // --- End of states ---
 
-    // Use LaunchedEffect to load data when permission is granted (or permission status changes)
-    // This will run when isPermissionGranted changes, or on initial composition if true.
+
     LaunchedEffect(key1 = isPermissionGranted) {
         if (isPermissionGranted) {
-            isLoading = true // 1. Set loading to true
-
-            // 2. Perform data fetching in a background coroutine
+            isLoading = true
             val (fetchedStats, fetchedTotalTime) = withContext(Dispatchers.IO) {
                 val usageMap = getTodaysAppUsage(context)
+                val pm = context.packageManager
 
-                // Transform map to List<Stat>
                 val stats = usageMap.map { (packageName, time) ->
-                    Stat(packageName, time)
-                }.sortedByDescending { it.totalTime } // Optional: sort by time
+                    var appName: String? = null
+                    var appIcon: android.graphics.drawable.Drawable? = null
+                    try {
+                        val appInfoPm = pm.getApplicationInfo(packageName, 0)
+                        appName = pm.getApplicationLabel(appInfoPm).toString()
+                        appIcon = pm.getApplicationIcon(appInfoPm)
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        Log.w("StatsScreen", "App not found: $packageName", e)
+                    }
+                    Stat(packageName, time, appName, appIcon)
+                }.sortedByDescending { it.totalTime }
 
                 val totalMs = stats.sumOf { it.totalTime }
-
-                Pair(stats, totalMs) // Return both results
+                Pair(stats, totalMs)
             }
 
-            // 3. Update Compose states with the fetched data (back on the Main thread)
             appStatsListState = fetchedStats
             totalTimeMsState = fetchedTotalTime
-            isLoading = false // 4. Set loading to false
+            isLoading = false
         } else {
-            // Optional: Clear data if permission is revoked
             appStatsListState = emptyList()
             totalTimeMsState = 0L
             isLoading = false
@@ -191,33 +177,22 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        // Changed to TopCenter if you want the list to start from the top
-        // contentAlignment = Alignment.Center
         contentAlignment = Alignment.TopCenter
     ) {
         if (isPermissionGranted) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                // Removed Arrangement.Center from Column if using TopCenter for Box
-                // verticalArrangement = Arrangement.Center
             ) {
-                // Display Total Time (now using the state variable)
                 val (hour, minute) = millisToHourAndMinute(totalTimeMsState)
 
-                // Only show total time if there is data, or always show it
-                if (totalTimeMsState > 0 || !isLoading) { // Show if data or not loading
-                    if (hour == 0 && minute == 0 && !isLoading && appStatsListState.isEmpty()) {
-                        // Avoid showing "Time: 0min" if there's genuinely no data yet and not loading
-                        // But if loading is finished and it's still 0, then show it.
-                    } else if (hour == 0) {
+                if (totalTimeMsState > 0 || !isLoading) {
+                    if (hour == 0) {
                         Text(text = "Total time: $minute min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
                     } else {
                         Text(text = "Total time: $hour hr $minute min", fontSize = 24.sp, modifier = Modifier.padding(bottom = 16.dp))
                     }
                 }
 
-
-                // Display List of Apps
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.padding(top = 20.dp))
                 } else if (appStatsListState.isEmpty()) {

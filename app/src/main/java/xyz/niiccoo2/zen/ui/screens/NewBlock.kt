@@ -3,7 +3,7 @@ package xyz.niiccoo2.zen.ui.screens
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.util.Log
+import android.graphics.drawable.Drawable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,7 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import xyz.niiccoo2.zen.utils.AppSettings
 import xyz.niiccoo2.zen.utils.TimeBlock
 import xyz.niiccoo2.zen.utils.getAppNameAndIcon
@@ -62,15 +65,9 @@ import java.util.Locale
 data class AppDisplayInfo(
     val packageName: String,
     val name: String,
-    val icon: android.graphics.drawable.Drawable?
+    val icon: Drawable?
 )
 
-/**
- * Returns a list of AppDisplayInfo objects for all installed apps.
- *
- * @param context The context to use for accessing package manager.
- * @return A list of AppDisplayInfo objects.
- */
 fun getInstalledPackageNames(context: Context): List<AppDisplayInfo> {
     val pm = context.packageManager
     val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
@@ -81,26 +78,30 @@ fun getInstalledPackageNames(context: Context): List<AppDisplayInfo> {
         }
         .mapNotNull { appInfo ->
             val name = appInfo.loadLabel(pm).toString()
-            val icon = try { appInfo.loadIcon(pm) } catch (_: Exception) { null }
+            val icon = try {
+                appInfo.loadIcon(pm)
+            } catch (_: Exception) {
+                null
+            }
             AppDisplayInfo(appInfo.packageName, name, icon)
         }
-        .sortedBy { it.name.lowercase() }
+        .sortedBy { it.name.lowercase(Locale.getDefault()) }
 }
 
 
 @Composable
-fun AppList(onAppClick: (packageName: String) -> Unit) {
-    val context = LocalContext.current
+fun AppList(
+    allApps: List<AppDisplayInfo>,
+    onAppClick: (packageName: String) -> Unit
+) {
     var searchText by remember { mutableStateOf("") }
-    val allPackageNames = getInstalledPackageNames(context = context)
 
-    val filteredApps = remember(searchText, allPackageNames) {
+    val filteredApps = remember(searchText, allApps) {
         if (searchText.isBlank()) {
-            allPackageNames
+            allApps
         } else {
-            allPackageNames.filter { app ->
+            allApps.filter { app ->
                 app.name.contains(searchText, ignoreCase = true)
-
             }
         }
     }
@@ -125,14 +126,15 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (searchText.isBlank()) "No user-installed apps found."
+                    if (searchText.isBlank() && allApps.isEmpty()) "No user-installed apps found."
+                    else if (searchText.isBlank() && allApps.isNotEmpty()) "No apps to display."
                     else "No apps found matching \"$searchText\""
                 )
             }
         } else {
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f) // Takes remaining space
+                    .weight(1f)
             ) {
                 items(
                     items = filteredApps,
@@ -141,7 +143,7 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted padding a bit
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                             .clickable {
                                 onAppClick(app.packageName)
                             },
@@ -151,7 +153,6 @@ fun AppList(onAppClick: (packageName: String) -> Unit) {
                             model = app.icon,
                             contentDescription = "${app.name} icon",
                             modifier = Modifier.size(48.dp),
-
                         )
                         Spacer(Modifier.width(16.dp))
                         Text(
@@ -212,7 +213,6 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // UI States
     var isAlwaysBlocked by remember(selectedPackageName) { mutableStateOf(true) }
     var selectedStartHour by remember(selectedPackageName) { mutableStateOf<Int?>(null) }
     var selectedStartMinute by remember(selectedPackageName) { mutableStateOf<Int?>(null) }
@@ -222,53 +222,62 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
-    // Load initial settings
+    var appName by remember(selectedPackageName) { mutableStateOf<String?>(null) }
+    var appIcon by remember(selectedPackageName) { mutableStateOf<Drawable?>(null) }
+    var isLoadingAppDetails by remember(selectedPackageName) { mutableStateOf(true) }
+
+
     LaunchedEffect(selectedPackageName) {
         if (selectedPackageName != null) {
-            val currentSettings = AppSettings.getSpecificAppSetting(context, selectedPackageName)
-            if (currentSettings != null) {
-                isAlwaysBlocked = currentSettings.isEffectivelyAlwaysBlocked
-                if (!isAlwaysBlocked && currentSettings.scheduledBlocks.isNotEmpty()) {
-                    // Assuming the first block is the one set by this UI
-                    val firstBlock = currentSettings.scheduledBlocks.first()
-                    selectedStartHour = firstBlock.startTime.hour
-                    selectedStartMinute = firstBlock.startTime.minute
-                    selectedEndHour = firstBlock.endTime.hour
-                    selectedEndMinute = firstBlock.endTime.minute
+            isLoadingAppDetails = true
+            withContext(Dispatchers.IO) {
+                val appInfoResult = getAppNameAndIcon(context, selectedPackageName)
+                appName = appInfoResult?.first
+                appIcon = appInfoResult?.second
+
+                val currentSettings = AppSettings.getSpecificAppSetting(context, selectedPackageName)
+                if (currentSettings != null) {
+                    isAlwaysBlocked = currentSettings.isEffectivelyAlwaysBlocked
+                    if (!isAlwaysBlocked && currentSettings.scheduledBlocks.isNotEmpty()) {
+                        val firstBlock = currentSettings.scheduledBlocks.first()
+                        selectedStartHour = firstBlock.startTime.hour
+                        selectedStartMinute = firstBlock.startTime.minute
+                        selectedEndHour = firstBlock.endTime.hour
+                        selectedEndMinute = firstBlock.endTime.minute
+                    } else {
+                        selectedStartHour = null
+                        selectedStartMinute = null
+                        selectedEndHour = null
+                        selectedEndMinute = null
+                    }
                 } else {
+                    isAlwaysBlocked = true
                     selectedStartHour = null
                     selectedStartMinute = null
                     selectedEndHour = null
                     selectedEndMinute = null
                 }
-            } else {
-                isAlwaysBlocked = true
-                selectedStartHour = null
-                selectedStartMinute = null
-                selectedEndHour = null
-                selectedEndMinute = null
             }
+            isLoadingAppDetails = false
         }
     }
 
     if (selectedPackageName == null) {
-        Log.w("NewBlockSettings", "selectedPackageName is null. Cannot display settings.")
         Text("No application selected.")
         return
     }
 
-    val appInfo = getAppNameAndIcon(context = context, packageName = selectedPackageName)
-
-    if (appInfo == null) {
-        Log.e("NewBlockSettings", "Could not get app info for $selectedPackageName")
-        Text("Error loading app details for $selectedPackageName.")
+    if (isLoadingAppDetails) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
         return
     }
 
-    val (nameFromAppInfo, iconFromAppInfo) = appInfo
-    val name = remember(selectedPackageName) { nameFromAppInfo }
-    val rememberedIcon = remember(selectedPackageName) { iconFromAppInfo }
-
+    if (appName == null) {
+        Text("Error loading app details for $selectedPackageName.")
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -280,12 +289,12 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
             modifier = Modifier.fillMaxWidth()
         ) {
             AsyncImage(
-                model = rememberedIcon,
-                contentDescription = "$name icon",
+                model = appIcon,
+                contentDescription = "$appName icon",
                 modifier = Modifier.size(48.dp)
             )
             Spacer(Modifier.width(12.dp))
-            Text(text = name, style = MaterialTheme.typography.titleLarge)
+            Text(text = appName ?: "App", style = MaterialTheme.typography.titleLarge)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -342,14 +351,14 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
             }
         }
 
-        // Save Button
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
                 coroutineScope.launch {
+                    val finalPackageName = selectedPackageName
+
                     if (isAlwaysBlocked) {
-                        AppSettings.setAppAsAlwaysBlocked(context, selectedPackageName)
-                        Log.d("NewBlockSettings", "Saved $selectedPackageName as always blocked.")
+                        AppSettings.setAppAsAlwaysBlocked(context, finalPackageName)
                     } else {
                         if (selectedStartHour != null && selectedStartMinute != null &&
                             selectedEndHour != null && selectedEndMinute != null
@@ -358,22 +367,17 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
                             val endTime = LocalTime.of(selectedEndHour!!, selectedEndMinute!!)
                             val customBlock = TimeBlock(startTime, endTime)
 
-                            AppSettings.updateSpecificAppSetting(context, selectedPackageName) { existingSettings ->
+                            AppSettings.updateSpecificAppSetting(context, finalPackageName) { existingSettings ->
                                 existingSettings.copy(
                                     scheduledBlocks = listOf(customBlock),
-                                    isOnBreak = false // Make sure break is off when setting schedule
+                                    isOnBreak = false
                                 )
                             }
-                            Log.d("NewBlockSettings", "Saved custom schedule for $selectedPackageName: $customBlock")
                         } else {
-                            Log.w("NewBlockSettings", "Custom schedule not saved. Start or end time missing.")
-
                             return@launch
                         }
                     }
-
                     navController.popBackStack()
-
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -381,7 +385,6 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
             Text("Save Settings")
         }
 
-        // Time Picker Dialogs
         if (showStartPicker) {
             TimePickerDialog(
                 onConfirm = { hour, minute ->
@@ -414,16 +417,34 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
 fun NewBlock(
     navController: NavController,
     modifier: Modifier = Modifier
-
 ) {
+    val context = LocalContext.current
+    var allInstalledApps by remember { mutableStateOf<List<AppDisplayInfo>>(emptyList()) }
+    var isLoadingApps by remember { mutableStateOf(true) }
+    var selectedPackageName by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        isLoadingApps = true
+        allInstalledApps = withContext(Dispatchers.IO) {
+            getInstalledPackageNames(context)
+        }
+        isLoadingApps = false
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Add App to Block List") },
+                title = { Text(if (selectedPackageName == null) "Add App to Block List" else "Configure Block") },
                 windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) { // Standard way to go back
+                    IconButton(onClick = {
+                        if (selectedPackageName != null) {
+                            selectedPackageName = null
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -436,15 +457,20 @@ fun NewBlock(
                 .padding(innerPadding),
             contentAlignment = Alignment.TopCenter
         ) {
-            var selectedPackageName by remember { mutableStateOf<String?>(null) }
-
             if (selectedPackageName == null) {
-                AppList(
-                    onAppClick = { packageName ->
-                        Log.d("NewBlockScreen", "App clicked in AppList! Package: $packageName")
-                        selectedPackageName = packageName
+                if (isLoadingApps) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                        Text("Loading apps...", modifier = Modifier.padding(top = 70.dp))
                     }
-                )
+                } else {
+                    AppList(
+                        allApps = allInstalledApps,
+                        onAppClick = { packageName ->
+                            selectedPackageName = packageName
+                        }
+                    )
+                }
             } else {
                 NewBlockSettings(navController,selectedPackageName)
             }
