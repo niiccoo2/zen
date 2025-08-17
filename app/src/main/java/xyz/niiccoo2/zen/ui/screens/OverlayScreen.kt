@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import xyz.niiccoo2.zen.utils.AlarmReceiver
 import xyz.niiccoo2.zen.utils.AppSettings.setAppOnBreak
 import xyz.niiccoo2.zen.utils.getSingleAppUsage
 import xyz.niiccoo2.zen.utils.millisToNormalTime
+
 
 class OverlayActivity : ComponentActivity() {
     companion object {
@@ -171,6 +173,7 @@ fun BlockingScreenComposable(
 ) {
     val context = LocalContext.current
     val appTime = millisToNormalTime(getSingleAppUsage(context, packageName), true)
+    val overrideEnabled by context.overrideEnabledFlow.collectAsState(initial = false)
 
 
     Box(
@@ -208,20 +211,24 @@ fun BlockingScreenComposable(
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(32.dp))
-            Button(
-                onClick = onContinueToApp,
-                modifier = Modifier.fillMaxWidth(0.8f)
-            ) {
-                AutosizeText(
-                    text = "Unblock $appName for 5 minutes",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        color = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    targetFontSize = MaterialTheme.typography.labelLarge.fontSize,
-                    minFontSize = 10.sp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
+
+            if (overrideEnabled) { // enabled = false looks really bad so we just won't show it
+                Button(
+                    onClick = onContinueToApp,
+                    modifier = Modifier.fillMaxWidth(0.8f)
+                ) {
+                    AutosizeText(
+                        text = "Unblock $appName for 5 minutes",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            color = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        targetFontSize = MaterialTheme.typography.labelLarge.fontSize,
+                        minFontSize = 10.sp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
             }
+
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(
                 onClick = onDoSomethingElse,

@@ -309,7 +309,7 @@ fun NewBlockSettings (navController: NavController, selectedPackageName: String?
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Always Blocked", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.weight(1f)) // 1f makes it take up all available space
                     Switch(
                         checked = isAlwaysBlocked,
                         onCheckedChange = { isAlwaysBlocked = it }
