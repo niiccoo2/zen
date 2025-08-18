@@ -8,8 +8,15 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Process
 import androidx.annotation.OptIn
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import xyz.niiccoo2.zen.ui.screens.statStartTimeFlow
 
 /**
  * Returns a map of all app usage from the start time to the end time.
@@ -62,7 +69,13 @@ fun getAppUsage(context: Context, start: Long, end: Long): Map<String, Long> {
  * @return A map of package names to their usage time in milliseconds.
  */
 fun getTodaysAppUsage(context: Context): Map<String, Long> {
-    val start = getStartOfTodayMillis()
+    var startTime = "00:00"
+    CoroutineScope(Dispatchers.IO).launch {
+        context.statStartTimeFlow.collect { value ->
+            startTime = value
+        }
+    }
+    val start = getStartOfTodayMillis(startTime)
     val end = System.currentTimeMillis()
     return getAppUsage(context, start, end)
 }

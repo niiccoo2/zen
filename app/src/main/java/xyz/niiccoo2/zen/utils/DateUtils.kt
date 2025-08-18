@@ -15,6 +15,7 @@ import java.time.format.FormatStyle
 /**
  * Returns the time at midnight in the users local timezone.
  *
+ * @param timeOffset The time offset from midnight in the users local timezone. If null, midnight is used. This is used so the user can specify when they want stats to reset.
  * @return The time at midnight in the users local timezone.
  */
 fun getStartOfTodayMillis(timeOffset: String? = null): Long {
