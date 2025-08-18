@@ -40,6 +40,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -47,11 +48,17 @@ import kotlinx.coroutines.launch
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 val OVERRIDE_ENABLED = booleanPreferencesKey("override_enabled")
+val STAT_START_TIME = stringPreferencesKey("stat_start_time")
 val Context.overrideEnabledFlow: Flow<Boolean>
     get() = dataStore.data
         .map { preferences ->
             preferences[OVERRIDE_ENABLED] ?: true  // default = true
         }
+val Context.statStartTimeFlow: Flow<String>
+    get() = dataStore.data.map { prefs ->
+        prefs[STAT_START_TIME] ?: "00:00" // default = 00:00
+    }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,9 +67,9 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val overrideEnabled by context.overrideEnabledFlow.collectAsState(initial = null)
+    val statStartTime by context.statStartTimeFlow.collectAsState(initial = "")
     // State to track the expanded state and selected option
     var expanded by remember { mutableStateOf(false) }
-    var selectedOption by remember { mutableStateOf("00:00") }
 
     // List of options for the dropdown menu
     val options = listOf("00:00", "01:00", "02:00", "03:00", "04:00")
@@ -121,7 +128,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         ) {
 
                             TextField(
-                                value = selectedOption,
+                                value = statStartTime,
                                 onValueChange = {},
                                 readOnly = true,
                                 trailingIcon = {
@@ -141,7 +148,11 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                                     DropdownMenuItem(
                                         text = { Text(option, color = MaterialTheme.colorScheme.onSurface) },
                                         onClick = {
-                                            selectedOption = option
+                                            scope.launch {
+                                                context.dataStore.edit { prefs ->
+                                                    prefs[STAT_START_TIME] = option
+                                                }
+                                            }
                                             expanded = false
                                         },
                                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding

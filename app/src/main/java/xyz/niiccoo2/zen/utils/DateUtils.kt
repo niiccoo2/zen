@@ -2,31 +2,43 @@ package xyz.niiccoo2.zen.utils
 
 import android.content.Context
 import androidx.annotation.OptIn
-import androidx.compose.material3.Text
-import androidx.compose.ui.unit.sp
 import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
-import androidx.wear.compose.materialcore.is24HourFormat
-import java.text.DateFormat
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.time.format.FormatStyle
-import kotlin.text.format
 
 /**
  * Returns the time at midnight in the users local timezone.
  *
  * @return The time at midnight in the users local timezone.
  */
-fun getStartOfTodayMillis(): Long {
+fun getStartOfTodayMillis(timeOffset: String? = null): Long {
     val todayLocalDate: LocalDate = LocalDate.now(ZoneId.systemDefault())
+    var specificTime: LocalTime = LocalTime.MIDNIGHT // Default to midnight
 
-    val startOfTodayZonedDateTime: ZonedDateTime = todayLocalDate.atStartOfDay(ZoneId.systemDefault())
+    if (timeOffset != null) {
+        try {
+            val offsetFormatter = DateTimeFormatter.ofPattern("HH:mm")
+            specificTime = LocalTime.parse(timeOffset, offsetFormatter)
+        } catch (e: DateTimeParseException) {
+            android.util.Log.w(
+                "DateUtils",
+                "Invalid timeOffset format: $timeOffset. Defaulting to midnight.",
+                e
+            )
+        }
+    }
 
-    return startOfTodayZonedDateTime.toInstant().toEpochMilli()
+    // Combine the current date with the (potentially offset) time
+    val specificZonedDateTime: ZonedDateTime = todayLocalDate.atTime(specificTime)
+        .atZone(ZoneId.systemDefault())
+
+    return specificZonedDateTime.toInstant().toEpochMilli()
 }
 
 /**
